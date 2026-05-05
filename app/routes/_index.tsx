@@ -7,15 +7,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const shop = url.searchParams.get("shop");
   if (shop) {
-    // Shopify app launch — let the embedded app route handle auth/token exchange
-    throw redirect(`/app?${url.searchParams.toString()}`);
+    const { prisma } = await import("../db.server");
+    const session = await prisma.session.findFirst({
+      where: { shop, accessToken: { not: "" } },
+    });
+    if (session) throw redirect(`/dashboard?shop=${shop}`);
   }
 
   return {};
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  return login(request);
+  const formData = await request.formData();
+  const shop = String(formData.get("shop") ?? "").trim().toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
+
+  if (!shop) return { error: "Please enter a shop domain." };
+
+  const normalized = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+  const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+  const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+  const scopes = process.env.SCOPES ?? "";
+  const redirectUri = `${appUrl}/auth/callback`;
+  const state = Math.random().toString(36).slice(2);
+
+  const oauthUrl =
+    `https://${normalized}/admin/oauth/authorize` +
+    `?client_id=${apiKey}` +
+    `&scope=${encodeURIComponent(scopes)}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&state=${state}` +
+    `&grant_options[]=offline`;
+
+  throw redirect(oauthUrl);
 };
 
 export default function Index() {
