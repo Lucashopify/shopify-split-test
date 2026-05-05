@@ -81,6 +81,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return { ok: true };
   }
 
+  if (intent === "update_guardrails") {
+    await prisma.experiment.update({
+      where: { id: exp.id },
+      data: {
+        autoStopSrm: formData.get("autoStopSrm") === "true",
+        autoStopRevDrop: formData.get("autoStopRevDrop") === "true",
+      },
+    });
+    return { ok: true };
+  }
+
   return { error: "Unknown intent" };
 };
 
@@ -96,6 +107,7 @@ export default function ExperimentDetail() {
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
+  const guardrailFetcher = useFetcher();
   const [tab, setTab] = useState(0);
 
   const status = experiment.status as ExperimentStatus;
@@ -231,6 +243,50 @@ export default function ExperimentDetail() {
               )}
             </segmentFetcher.Form>
           </div>
+
+          {/* Guardrails */}
+          <div style={{ marginTop: "0.5rem" }}>
+            <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.75rem" }}>
+              Auto-stop guardrails
+            </div>
+            <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
+              <guardrailFetcher.Form method="post" data-guardrail-form>
+                <input type="hidden" name="intent" value="update_guardrails" />
+                <GuardrailRow
+                  name="autoStopSrm"
+                  value={experiment.autoStopSrm}
+                  label="Sample Ratio Mismatch (SRM)"
+                  description="Pauses the experiment if visitor allocation drifts significantly from target weights (chi-squared p < 0.01, requires ≥100 visitors per variant). An SRM means something in the assignment pipeline is broken and results can't be trusted."
+                  onChange={(v) => {
+                    const form = document.querySelector<HTMLFormElement>("[data-guardrail-form]");
+                    if (form) {
+                      const fd = new FormData(form);
+                      fd.set("autoStopSrm", String(v));
+                      guardrailFetcher.submit(fd, { method: "post" });
+                    }
+                  }}
+                />
+                <GuardrailRow
+                  name="autoStopRevDrop"
+                  value={experiment.autoStopRevDrop}
+                  label="Control revenue / CVR drop"
+                  description="Pauses if the control variant's conversion rate drops more than 20% below its first-hour baseline. Catches regressions where the experiment itself (e.g. a broken variant) hurts the store's baseline performance. Requires ≥200 control sessions."
+                  last
+                  onChange={(v) => {
+                    const form = document.querySelector<HTMLFormElement>("[data-guardrail-form]");
+                    if (form) {
+                      const fd = new FormData(form);
+                      fd.set("autoStopRevDrop", String(v));
+                      guardrailFetcher.submit(fd, { method: "post" });
+                    }
+                  }}
+                />
+              </guardrailFetcher.Form>
+            </div>
+            <p style={{ fontSize: "0.7rem", color: "#bbb", margin: "0.5rem 0 0", lineHeight: 1.5 }}>
+              Guardrails run every hour. When triggered the experiment is paused and an audit log entry is created — you can review and resume manually.
+            </p>
+          </div>
         </div>
       )}
 
@@ -267,6 +323,45 @@ export default function ExperimentDetail() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function GuardrailRow({
+  name, value, label, description, last = false, onChange,
+}: {
+  name: string;
+  value: boolean;
+  label: string;
+  description: string;
+  last?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "1rem 1.25rem", borderBottom: last ? "none" : "1px solid #f3f3f3" }}>
+      <input type="hidden" name={name} value={String(value)} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#111", marginBottom: "0.25rem" }}>{label}</div>
+        <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>{description}</div>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!value)}
+        style={{
+          flexShrink: 0,
+          width: 36, height: 20, borderRadius: 10,
+          background: value ? "#16a34a" : "#e5e7eb",
+          border: "none", cursor: "pointer", position: "relative",
+          transition: "background 0.2s",
+        }}
+        aria-label={value ? "Enabled" : "Disabled"}
+      >
+        <span style={{
+          position: "absolute", top: 2, left: value ? 18 : 2,
+          width: 16, height: 16, borderRadius: "50%", background: "#fff",
+          transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+        }} />
+      </button>
     </div>
   );
 }
