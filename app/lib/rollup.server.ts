@@ -46,8 +46,7 @@ export async function runRollup(experimentId: string) {
   const { shopId, variants, autoStopSrm, autoStopRevDrop } = exp;
 
   const now = new Date();
-  const windowEnd = new Date(now);
-  windowEnd.setMinutes(0, 0, 0);
+  const windowEnd = new Date(now); // use current time so in-progress hour is included
   const windowStart = new Date(windowEnd);
   windowStart.setHours(windowStart.getHours() - 1);
 
