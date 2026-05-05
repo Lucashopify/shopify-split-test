@@ -3,7 +3,7 @@
 client_id = "842285b54c003859a0ca5d6b5e1b74ad"
 name = "Split tester"
 application_url = "https://amused-bravery-production-e9f7.up.railway.app"
-embedded = false
+embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
@@ -35,4 +35,4 @@ api_version = "2025-01"
 
 
 [pos]
-embedded = false
+embedded = true
