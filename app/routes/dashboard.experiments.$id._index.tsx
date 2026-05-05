@@ -85,6 +85,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return { ok: true };
   }
 
+  if (intent === "force_rollup") {
+    const { rollupQueue } = await import("../../jobs/src/rollup.js");
+    await rollupQueue.add("manual-rollup", { shopId: shop.id, experimentId: exp.id });
+    return { ok: true, message: "Rollup queued" };
+  }
+
   if (intent === "update_guardrails") {
     const minDays = parseInt(String(formData.get("minimumRuntimeDays") ?? "7"), 10);
     await prisma.experiment.update({
@@ -114,6 +120,7 @@ export default function ExperimentDetail() {
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
   const guardrailFetcher = useFetcher();
+  const rollupFetcher = useFetcher();
   const [tab, setTab] = useState(0);
 
   const status = experiment.status as ExperimentStatus;
@@ -381,12 +388,26 @@ export default function ExperimentDetail() {
       )}
 
       {tab === 2 && (
-        <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
-          {displayStatus === "DRAFT" ? (
-            <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Start the experiment to begin collecting results.</p>
-          ) : (
-            <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Results will appear here once enough data has been collected.</p>
-          )}
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+            <rollupFetcher.Form method="post">
+              <input type="hidden" name="intent" value="force_rollup" />
+              <button
+                type="submit"
+                disabled={rollupFetcher.state !== "idle"}
+                style={{ fontSize: "0.8125rem", background: "#f4f4f4", border: "1px solid #e9e9e9", borderRadius: 6, padding: "0.35rem 0.875rem", cursor: "pointer" }}
+              >
+                {rollupFetcher.state !== "idle" ? "Refreshing…" : "↻ Refresh results"}
+              </button>
+            </rollupFetcher.Form>
+          </div>
+          <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
+            {displayStatus === "DRAFT" ? (
+              <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Start the experiment to begin collecting results.</p>
+            ) : (
+              <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Results will appear here once enough data has been collected.</p>
+            )}
+          </div>
         </div>
       )}
     </div>
