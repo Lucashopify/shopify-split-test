@@ -213,13 +213,21 @@ async function handleOrderCreate(
   const [firstExpId, firstVarId] =
     Object.entries(assignments)[0] ?? [null, null];
 
+  // Validate that the experiment/variant IDs actually exist before writing
+  let resolvedExpId: string | null = firstExpId ?? null;
+  let resolvedVarId: string | null = firstVarId ?? null;
+  if (resolvedExpId) {
+    const expExists = await prisma.experiment.findUnique({ where: { id: resolvedExpId }, select: { id: true } });
+    if (!expExists) { resolvedExpId = null; resolvedVarId = null; }
+  }
+
   await prisma.order.create({
     data: {
       shopId: shop.id,
       shopifyOrderId,
       shopifyOrderGid,
-      experimentId: firstExpId ?? null,
-      variantId: firstVarId ?? null,
+      experimentId: resolvedExpId,
+      variantId: resolvedVarId,
       visitorId: visitor?.id ?? null,
       revenue,
       revenueAdjusted: revenue,
