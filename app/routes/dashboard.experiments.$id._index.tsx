@@ -30,7 +30,35 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     orderBy: { createdAt: "desc" },
   });
 
-  return data({ experiment, segments }, { headers: { "Set-Cookie": setCookie } });
+  // Aggregate ExperimentResult rows per variant (cumulative across all windows)
+  const resultRows = await prisma.experimentResult.groupBy({
+    by: ["variantId"],
+    where: { experimentId: experiment.id },
+    _sum: {
+      sessions: true,
+      uniqueVisitors: true,
+      addToCartCount: true,
+      initiateCheckoutCount: true,
+      conversionCount: true,
+      revenue: true,
+    },
+    _max: {
+      windowEnd: true,
+      pValue: true,
+      srmPValue: true,
+      liftPct: true,
+    },
+  });
+
+  // Real-time order counts directly from Order table
+  const liveOrders = await prisma.order.groupBy({
+    by: ["variantId"],
+    where: { experimentId: experiment.id },
+    _count: { id: true },
+    _sum: { revenue: true },
+  });
+
+  return data({ experiment, segments, resultRows, liveOrders }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -115,7 +143,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -401,13 +429,24 @@ export default function ExperimentDetail() {
               </button>
             </rollupFetcher.Form>
           </div>
-          <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
-            {displayStatus === "DRAFT" ? (
+
+          {displayStatus === "DRAFT" ? (
+            <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
               <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Start the experiment to begin collecting results.</p>
-            ) : (
-              <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>Results will appear here once enough data has been collected.</p>
-            )}
-          </div>
+            </div>
+          ) : resultRows.length === 0 && liveOrders.length === 0 ? (
+            <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
+              <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>
+                No results yet. Click ↻ Refresh results to compute stats, or wait for the hourly rollup.
+              </p>
+            </div>
+          ) : (
+            <ResultsTable
+              variants={experiment.variants}
+              resultRows={resultRows}
+              liveOrders={liveOrders}
+            />
+          )}
         </div>
       )}
     </div>
@@ -458,6 +497,119 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.75rem 0", borderBottom: "1px solid #f5f5f5" }}>
       <span style={{ width: 180, fontSize: "0.8125rem", color: "#999", flexShrink: 0 }}>{label}</span>
       <span style={{ fontSize: "0.8125rem", color: "#111" }}>{value}</span>
+    </div>
+  );
+}
+
+type ResultRow = {
+  variantId: string;
+  _sum: { sessions: number | null; uniqueVisitors: number | null; addToCartCount: number | null; initiateCheckoutCount: number | null; conversionCount: number | null; revenue: number | null };
+  _max: { windowEnd: string | null; pValue: number | null; srmPValue: number | null; liftPct: number | null };
+};
+
+type LiveOrder = {
+  variantId: string | null;
+  _count: { id: number };
+  _sum: { revenue: number | null };
+};
+
+type VariantStub = { id: string; name: string; isControl: boolean };
+
+function ResultsTable({
+  variants,
+  resultRows,
+  liveOrders,
+}: {
+  variants: VariantStub[];
+  resultRows: ResultRow[];
+  liveOrders: LiveOrder[];
+}) {
+  const srmFlagged = resultRows.some((r) => (r._max.srmPValue ?? 1) < 0.01);
+  const pValue = resultRows.find((r) => r._max.pValue != null)?._max.pValue ?? null;
+
+  const rows = variants.map((v) => {
+    const res = resultRows.find((r) => r.variantId === v.id);
+    const live = liveOrders.find((o) => o.variantId === v.id);
+
+    const sessions = res?._sum.sessions ?? 0;
+    const orders = Math.max(res?._sum.conversionCount ?? 0, live?._count.id ?? 0);
+    const revenue = Math.max(res?._sum.revenue ?? 0, live?._sum.revenue ?? 0);
+    const atc = res?._sum.addToCartCount ?? 0;
+    const checkout = res?._sum.initiateCheckoutCount ?? 0;
+
+    const cvr = sessions > 0 ? orders / sessions : null;
+    const atcRate = sessions > 0 ? atc / sessions : null;
+    const checkoutRate = sessions > 0 ? checkout / sessions : null;
+    const aov = orders > 0 ? revenue / orders : null;
+
+    return { v, sessions, orders, revenue, atc, checkout, cvr, atcRate, checkoutRate, aov, liftPct: res?._max.liftPct ?? null };
+  });
+
+  const fmt = (n: number | null, decimals = 1, suffix = "%") =>
+    n == null ? "—" : `${(n * (suffix === "%" ? 100 : 1)).toFixed(decimals)}${suffix}`;
+  const fmtMoney = (n: number | null) =>
+    n == null || n === 0 ? "—" : `$${n.toFixed(2)}`;
+
+  const thStyle: React.CSSProperties = { textAlign: "left", fontSize: "0.7rem", color: "#999", textTransform: "uppercase" as const, letterSpacing: "0.05em", padding: "0.5rem 0.75rem", fontWeight: 500, borderBottom: "1px solid #e9e9e9", whiteSpace: "nowrap" as const };
+  const tdStyle: React.CSSProperties = { padding: "0.75rem", fontSize: "0.8125rem", color: "#111", borderBottom: "1px solid #f3f3f3" };
+  const tdNumStyle: React.CSSProperties = { ...tdStyle, textAlign: "right" as const, fontVariantNumeric: "tabular-nums" };
+
+  return (
+    <div>
+      {srmFlagged && (
+        <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#991b1b" }}>
+          ⚠ Sample Ratio Mismatch detected — visitor allocation is significantly off from target weights. Results may be unreliable.
+        </div>
+      )}
+      {pValue != null && (
+        <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: pValue < 0.05 ? "#f0fdf4" : "#f9fafb", border: `1px solid ${pValue < 0.05 ? "#bbf7d0" : "#e9e9e9"}`, borderRadius: 6, fontSize: "0.8125rem", color: pValue < 0.05 ? "#166534" : "#666" }}>
+          {pValue < 0.05
+            ? `✓ Statistically significant (p = ${pValue.toFixed(4)})`
+            : `p-value: ${pValue.toFixed(4)} — not yet significant (need p < 0.05)`}
+        </div>
+      )}
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
+          <thead>
+            <tr style={{ background: "#fafafa" }}>
+              <th style={thStyle}>Variant</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Sessions</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Orders</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>CVR</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>ATC Rate</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Checkout Rate</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Revenue</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>AOV</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Lift</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ v, sessions, orders, revenue, cvr, atcRate, checkoutRate, aov, liftPct }) => (
+              <tr key={v.id}>
+                <td style={tdStyle}>
+                  <span style={{ fontWeight: 500 }}>{v.name}</span>
+                  {v.isControl && (
+                    <span style={{ marginLeft: "0.4rem", fontSize: "0.65rem", color: "#999", background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.4rem" }}>control</span>
+                  )}
+                </td>
+                <td style={tdNumStyle}>{sessions.toLocaleString()}</td>
+                <td style={tdNumStyle}>{orders.toLocaleString()}</td>
+                <td style={tdNumStyle}>{fmt(cvr)}</td>
+                <td style={tdNumStyle}>{fmt(atcRate)}</td>
+                <td style={tdNumStyle}>{fmt(checkoutRate)}</td>
+                <td style={tdNumStyle}>{fmtMoney(revenue)}</td>
+                <td style={tdNumStyle}>{fmtMoney(aov)}</td>
+                <td style={{ ...tdNumStyle, color: liftPct == null ? "#999" : liftPct > 0 ? "#16a34a" : liftPct < 0 ? "#dc2626" : "#111" }}>
+                  {v.isControl ? "—" : liftPct == null ? "—" : `${liftPct > 0 ? "+" : ""}${(liftPct * 100).toFixed(1)}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: "0.7rem", color: "#bbb", margin: "0.5rem 0 0" }}>
+        Cumulative totals across all rollup windows. Click ↻ Refresh results to include the latest data.
+      </p>
     </div>
   );
 }
