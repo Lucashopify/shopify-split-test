@@ -1,5 +1,4 @@
-import { type LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { data, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 
@@ -24,7 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const plan = shop?.billingPlan;
 
-  return Response.json({
+  return data({
     planName: plan?.planName ?? "free_trial",
     trialEndsAt: plan?.trialEndsAt?.toISOString() ?? null,
     currentPeriodEnd: plan?.currentPeriodEnd?.toISOString() ?? null,

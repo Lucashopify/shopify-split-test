@@ -1,5 +1,4 @@
-import { type ActionFunctionArgs, type LoaderFunctionArgs, redirect } from "react-router";
-import { useLoaderData, useNavigate, useFetcher } from "react-router";
+import { data, redirect, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 
@@ -13,7 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         include: { _count: { select: { experiments: true } } },
       })
     : [];
-  return Response.json({ segments }, { headers: { "Set-Cookie": setCookie } });
+  return data({ segments }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -29,7 +28,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  return Response.json({ ok: true }, { headers: { "Set-Cookie": setCookie } });
+  return data({ ok: true }, { headers: { "Set-Cookie": setCookie } });
 };
 
 function ruleSummary(rules: unknown): string {

@@ -7,7 +7,6 @@ embedded = false
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 dev_command = "npx react-router dev"
 build_command = "npx react-router build"
 
@@ -30,6 +29,22 @@ api_version = "2025-01"
 
   [[webhooks.subscriptions]]
   topics = ["shop/update"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create", "orders/paid"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/cancelled", "orders/updated"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["themes/create", "themes/update", "themes/delete"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["customers/data_request", "customers/redact", "shop/redact"]
   uri = "/webhooks"
 
 

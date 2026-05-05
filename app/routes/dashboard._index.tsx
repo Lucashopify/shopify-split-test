@@ -1,5 +1,4 @@
-import { type LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { data, useLoaderData, useNavigate, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import type { ExperimentStatus } from "@prisma/client";
@@ -51,7 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return { date: key, count: dayMap[key] ?? 0 };
   });
 
-  return Response.json({
+  return data({
     shopDomain,
     activeExperiments: activeCount,
     totalExperiments: totalCount,

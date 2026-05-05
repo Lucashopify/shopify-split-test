@@ -35,6 +35,7 @@ export type ExperimentConfigEntry = {
   trafficAllocation: number;
   targetTemplate: string | null;
   targetUrl: string | null;
+  segment: { id: string; rules: unknown } | null;
   variants: Array<{
     id: string;
     trafficWeight: number;
@@ -68,6 +69,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
           priceAdjType: true, priceAdjValue: true,
         },
       },
+      segment: { select: { id: true, rules: true } },
     },
   });
 
@@ -79,6 +81,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       trafficAllocation: exp.trafficAllocation,
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
+      segment: exp.segment,
       variants: exp.variants,
     })),
     apiUrl: process.env.SHOPIFY_APP_URL ?? "",
@@ -99,37 +102,62 @@ type AdminClient = {
  * Safe to call repeatedly — ignores "already exists" errors.
  */
 export async function ensureMetafieldDefinition(admin: AdminClient): Promise<void> {
-  const resp = await admin.graphql(
-    `
-    mutation EnsureMetafieldDef($definition: MetafieldDefinitionInput!) {
+  const definition = {
+    namespace: "split_test_app",
+    key: "config",
+    name: "Split Test Config",
+    description: "Storefront experiment configuration — read by the Split Test theme embed.",
+    type: "json",
+    ownerType: "SHOP",
+    access: { storefront: "PUBLIC_READ" },
+  };
+
+  const createResp = await admin.graphql(
+    `mutation EnsureMetafieldDef($definition: MetafieldDefinitionInput!) {
       metafieldDefinitionCreate(definition: $definition) {
         createdDefinition { id }
         userErrors { field message code }
       }
-    }
-    `,
-    {
-      variables: {
-        definition: {
-          namespace: "split_test_app",
-          key: "config",
-          name: "Split Test Config",
-          description: "Storefront experiment configuration — read by the Split Test theme embed.",
-          type: "json",
-          ownerType: "SHOP",
-        },
-      },
-    },
+    }`,
+    { variables: { definition } },
   );
 
-  const { data } = await resp.json();
+  const { data: createData } = await createResp.json();
   const errs: Array<{ code: string; message: string }> =
-    data?.metafieldDefinitionCreate?.userErrors ?? [];
+    createData?.metafieldDefinitionCreate?.userErrors ?? [];
 
-  // TAKEN means the definition already exists — that's fine
+  const taken = errs.some((e) => e.code === "TAKEN");
   const fatal = errs.filter((e) => e.code !== "TAKEN");
+
   if (fatal.length) {
-    console.warn("[ensureMetafieldDefinition] Unexpected errors:", fatal);
+    console.warn("[ensureMetafieldDefinition] Create errors:", fatal);
+  }
+
+  // Definition already exists — update it to ensure storefront access is set
+  if (taken) {
+    const updateResp = await admin.graphql(
+      `mutation UpdateMetafieldDef($definition: MetafieldDefinitionUpdateInput!) {
+        metafieldDefinitionUpdate(definition: $definition) {
+          updatedDefinition { id }
+          userErrors { field message code }
+        }
+      }`,
+      {
+        variables: {
+          definition: {
+            namespace: "split_test_app",
+            key: "config",
+            ownerType: "SHOP",
+            access: { storefront: "PUBLIC_READ" },
+          },
+        },
+      },
+    );
+    const { data: updateData } = await updateResp.json();
+    const updateErrs = updateData?.metafieldDefinitionUpdate?.userErrors ?? [];
+    if (updateErrs.length) {
+      console.warn("[ensureMetafieldDefinition] Update errors:", updateErrs);
+    }
   }
 }
 

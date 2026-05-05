@@ -1,6 +1,5 @@
+import { Form, data, redirect, useActionData, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState, useCallback } from "react";
-import { type ActionFunctionArgs, type LoaderFunctionArgs, redirect } from "react-router";
-import { useLoaderData, useNavigate, useActionData, Form } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 
@@ -39,7 +38,7 @@ const OPS_FOR: Record<string, { value: RuleOp; label: string }[]> = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { setCookie } = await requireDashboardSession(request);
-  return Response.json({}, { headers: { "Set-Cookie": setCookie } });
+  return data({}, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -51,22 +50,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const rulesRaw = String(formData.get("rules") ?? "[]");
 
   if (!name) {
-    return Response.json({ error: "Name is required." }, { headers: { "Set-Cookie": setCookie } });
+    return data({ error: "Name is required." }, { headers: { "Set-Cookie": setCookie } });
   }
 
   let children: Array<{ field: string; op: string; value: string }>;
   try {
     children = JSON.parse(rulesRaw);
   } catch {
-    return Response.json({ error: "Invalid rules." }, { headers: { "Set-Cookie": setCookie } });
+    return data({ error: "Invalid rules." }, { headers: { "Set-Cookie": setCookie } });
   }
 
   if (children.length === 0) {
-    return Response.json({ error: "Add at least one condition." }, { headers: { "Set-Cookie": setCookie } });
+    return data({ error: "Add at least one condition." }, { headers: { "Set-Cookie": setCookie } });
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
-  if (!shop) return Response.json({ error: "Shop not found." }, { headers: { "Set-Cookie": setCookie } });
+  if (!shop) return data({ error: "Shop not found." }, { headers: { "Set-Cookie": setCookie } });
 
   await prisma.segment.create({
     data: {

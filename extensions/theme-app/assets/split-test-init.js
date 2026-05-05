@@ -41,10 +41,47 @@
 
     html.classList.add('spt-loading');
 
+    /* safety: always show page within 2s even if something goes wrong */
+    var showPage = function() {
+      html.classList.remove('spt-loading');
+      html.classList.add('spt-ready');
+    };
+    var safetyTimer = setTimeout(showPage, 2000);
+
+    /* segment matching — evaluates client-knowable fields only; unknown fields → allow */
+    var _urlParams = new URLSearchParams(location.search);
+    var _clientAttrs = {
+      device: null, // set lazily after getDevice is defined
+      utmSource: _urlParams.get('utm_source') || '',
+      utmMedium: _urlParams.get('utm_medium') || '',
+      utmCampaign: _urlParams.get('utm_campaign') || '',
+      referrer: d.referrer || '',
+    };
+    function matchSegment(seg) {
+      if (!seg || !seg.rules) return true;
+      var rules = seg.rules;
+      var children = rules.children || [];
+      if (!children.length) return true;
+      // device is only resolvable after DOMContentLoaded, approximate now from window.innerWidth
+      var deviceNow = w.innerWidth < 768 ? 'mobile' : w.innerWidth < 1024 ? 'tablet' : 'desktop';
+      var attrs = { device: deviceNow, utmSource: _clientAttrs.utmSource, utmMedium: _clientAttrs.utmMedium, utmCampaign: _clientAttrs.utmCampaign, referrer: _clientAttrs.referrer };
+      var results = children.map(function(child) {
+        if (!(child.field in attrs)) return true; // server-only field (country, customerType) → allow client-side
+        var val = (attrs[child.field] || '').toLowerCase();
+        var target = (child.value || '').toLowerCase();
+        if (child.op === 'eq') return val === target;
+        if (child.op === 'neq') return val !== target;
+        if (child.op === 'contains') return val.indexOf(target) !== -1;
+        return true;
+      });
+      return rules.op === 'OR' ? results.some(function(r) { return r; }) : results.every(function(r) { return r; });
+    }
+
     /* assign variants */
     for (var i = 0; i < exps.length; i++) {
       var exp = exps[i];
       if (exp.status !== 'RUNNING') continue;
+      if (!matchSegment(exp.segment)) continue;
       var allocB = fnv(visitorId + ':' + exp.id + ':alloc') % 100;
       if (allocB >= (exp.trafficAllocation || 100)) continue;
       var varId = asgn[exp.id];
@@ -56,8 +93,6 @@
       if (varId) { html.classList.add('spt-e-' + exp.id.slice(-8) + '-v-' + varId.slice(-8)); }
     }
 
-    html.classList.remove('spt-loading');
-    html.classList.add('spt-ready');
     if (changed) saveAsgn(asgn);
 
     /* apply variant-specific behaviour */
@@ -71,7 +106,7 @@
       if (!av || av.isControl) continue;
       if (eA.type === 'URL_REDIRECT' && av.redirectUrl) {
         if (location.pathname + location.search !== av.redirectUrl && location.href !== av.redirectUrl) {
-          w.location.replace(av.redirectUrl); return;
+          clearTimeout(safetyTimer); w.location.replace(av.redirectUrl); return;
         }
       }
       if (eA.type === 'PRICE' && av.priceAdjValue != null) {
@@ -81,19 +116,46 @@
       if (eA.type === 'THEME' && av.themeId) {
         // Extract numeric ID from GID like "gid://shopify/Theme/123456789"
         var numericId = String(av.themeId).split('/').pop();
-        // Check if already on this preview theme
         var currentThemeId = w.Shopify && w.Shopify.theme && String(w.Shopify.theme.id);
-        if (currentThemeId !== numericId) {
-          var params = new URLSearchParams(location.search);
-          if (params.get('preview_theme_id') !== numericId) {
-            params.set('preview_theme_id', numericId);
-            params.set('pb', '0');
-            w.location.replace(location.pathname + '?' + params.toString() + location.hash);
-            return;
+        var params = new URLSearchParams(location.search);
+        var previewParam = params.get('preview_theme_id');
+
+        if (currentThemeId === numericId) {
+          // Already on correct theme — clean all redirect params from URL
+          params.delete('preview_theme_id');
+          params.delete('_ab');
+          params.delete('_fd');
+          params.delete('_sc');
+          var cleanSearch = params.toString();
+          var cleanUrl = location.pathname + (cleanSearch ? '?' + cleanSearch : '') + location.hash;
+          w.history.replaceState(null, '', cleanUrl);
+          // Remove Shopify's preview bar from DOM
+          var sel = '#preview-bar-iframe, #PBarNextFrameWrapper';
+          var bar = d.querySelector(sel);
+          if (bar) {
+            bar.remove();
+          } else {
+            var obs = new MutationObserver(function() {
+              var b = d.querySelector(sel);
+              if (b) { b.remove(); obs.disconnect(); }
+            });
+            obs.observe(d.documentElement, { childList: true, subtree: true });
           }
+        } else {
+          // Wrong theme — redirect to variant theme
+          params.set('preview_theme_id', numericId);
+          params.set('_ab', '0');
+          params.set('_fd', '0');
+          params.set('_sc', '1');
+          clearTimeout(safetyTimer); w.location.replace(location.pathname + '?' + params.toString() + location.hash);
+          return;
         }
       }
     }
+
+    /* no redirect needed — reveal page */
+    clearTimeout(safetyTimer);
+    showPage();
 
     /* expose for debugging */
     w.__SPT_VID__ = visitorId;
@@ -156,6 +218,10 @@
           assignments: asgn,
           device: getDevice(),
           pageUrl: location.href,
+          referrer: d.referrer || undefined,
+          utmSource: _clientAttrs.utmSource || undefined,
+          utmMedium: _clientAttrs.utmMedium || undefined,
+          utmCampaign: _clientAttrs.utmCampaign || undefined,
         }),
       }).catch(function () {});
     }

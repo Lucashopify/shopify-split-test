@@ -1,9 +1,9 @@
-import { type LoaderFunctionArgs } from "react-router";
+import { data, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { setCookie } = await requireDashboardSession(request);
-  return Response.json({}, { headers: { "Set-Cookie": setCookie } });
+  return data({}, { headers: { "Set-Cookie": setCookie } });
 };
 
 const TEMPLATES = [

@@ -3,6 +3,7 @@
   Enable via Theme Editor → App embeds → Split Test Embed
 {% endcomment %}
 
+<style>html.spt-loading{opacity:0!important;pointer-events:none}</style>
 <script>
   window.__SPT_SHOP__ = {{ shop.permanent_domain | json }};
   {%- assign spt_raw = shop.metafields.split_test_app.config.value -%}

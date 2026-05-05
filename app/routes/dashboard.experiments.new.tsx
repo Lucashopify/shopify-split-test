@@ -31,14 +31,18 @@ const EXPERIMENT_TYPES = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await requireDashboardSession(request); // auth
+  const { admin, shop } = await requireDashboardSession(request); // auth
   let themes: Array<{ id: string; name: string; role: string }> = [];
   try {
     themes = await getThemes(admin);
   } catch (err) {
     console.error("[new experiment] Failed to fetch themes:", err);
   }
-  return { themes };
+  const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
+  const segments = dbShop
+    ? await prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } })
+    : [];
+  return { themes, segments };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -49,6 +53,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const hypothesis = String(formData.get("hypothesis") ?? "").trim();
   const type = String(formData.get("type") ?? "") as ExperimentType;
   const trafficAllocation = Number(formData.get("trafficAllocation") ?? 100);
+  const segmentId = String(formData.get("segmentId") ?? "").trim() || null;
   const controlName = String(formData.get("controlName") ?? "Control").trim();
   const variantName = String(formData.get("variantName") ?? "Variant B").trim();
 
@@ -87,6 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       hypothesis: hypothesis || null,
       type,
       trafficAllocation,
+      segmentId,
       variants: {
         create: [
           { name: controlName, isControl: true, trafficWeight: 50 },
@@ -100,7 +106,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function NewExperiment() {
-  const { themes } = useLoaderData<typeof loader>();
+  const { themes, segments } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -111,6 +117,7 @@ export default function NewExperiment() {
   const [trafficAllocation, setTrafficAllocation] = useState<number>(100);
   const [controlName, setControlName] = useState("Control");
   const [variantName, setVariantName] = useState("Variant B");
+  const [segmentId, setSegmentId] = useState("");
 
   // Type-specific state
   const [variantThemeId, setVariantThemeId] = useState("");
@@ -144,10 +151,11 @@ export default function NewExperiment() {
     if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) {
       fd.set("variantCustomLiquid", variantCustomLiquid);
     }
+    if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
   }, [name, hypothesis, type, trafficAllocation, controlName, variantName,
       variantThemeId, variantRedirectUrl, variantPriceAdjType, variantPriceAdjValue,
-      variantCustomLiquid, submit]);
+      variantCustomLiquid, segmentId, submit]);
 
   return (
     <Page
@@ -304,6 +312,16 @@ export default function NewExperiment() {
                   step={5}
                   onChange={(v) => setTrafficAllocation(v as number)}
                   output
+                />
+                <Select
+                  label="Segment (optional)"
+                  helpText="Only show this experiment to visitors matching a segment. Leave blank to target all visitors."
+                  options={[
+                    { label: "— All visitors —", value: "" },
+                    ...segments.map((s) => ({ label: s.name, value: s.id })),
+                  ]}
+                  value={segmentId}
+                  onChange={setSegmentId}
                 />
               </BlockStack>
             </Card>

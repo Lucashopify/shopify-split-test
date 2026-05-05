@@ -20,6 +20,29 @@ import {
 } from "./bucket.server";
 import type { ExperimentStatus } from "@prisma/client";
 
+type SegmentRule = { field: string; op: string; value: string };
+type SegmentRuleTree = { op: string; children: SegmentRule[] };
+
+function matchesSegment(rules: unknown, attrs: Partial<Record<string, string>>): boolean {
+  try {
+    const r = rules as SegmentRuleTree;
+    if (!r?.children?.length) return true;
+    const results = r.children.map((child) => {
+      const val = attrs[child.field];
+      if (val == null) return true; // unknown attribute → allow
+      const v = val.toLowerCase();
+      const t = (child.value ?? "").toLowerCase();
+      if (child.op === "eq") return v === t;
+      if (child.op === "neq") return v !== t;
+      if (child.op === "contains") return v.includes(t);
+      return true;
+    });
+    return r.op === "OR" ? results.some(Boolean) : results.every(Boolean);
+  } catch {
+    return true; // parse error → allow
+  }
+}
+
 export type AssignInput = {
   shopId: string;
   visitorToken: string;
@@ -82,17 +105,31 @@ export async function assignVisitor(input: AssignInput): Promise<AssignResult> {
   // Load running experiments for this shop
   const experiments = await prisma.experiment.findMany({
     where: { shopId, status: "RUNNING" as ExperimentStatus },
-    include: { variants: { orderBy: { createdAt: "asc" } } },
+    include: {
+      variants: { orderBy: { createdAt: "asc" } },
+      segment: { select: { id: true, rules: true } },
+    },
   });
 
   const assignments: Record<string, string> = {};
 
   for (const exp of experiments) {
     // Check traffic allocation
-    if (
-      !isInAllocation(visitorToken, exp.id, exp.trafficAllocation)
-    ) {
+    if (!isInAllocation(visitorToken, exp.id, exp.trafficAllocation)) {
       continue;
+    }
+
+    // Check segment match
+    if (exp.segment) {
+      const attrs: Partial<Record<string, string>> = {};
+      if (device) attrs.device = device;
+      if (country) attrs.country = country;
+      if (utmSource) attrs.utmSource = utmSource;
+      if (utmMedium) attrs.utmMedium = utmMedium;
+      if (utmCampaign) attrs.utmCampaign = utmCampaign;
+      if (referrer) attrs.referrer = referrer;
+      if (visitor.customerType) attrs.customerType = visitor.customerType;
+      if (!matchesSegment(exp.segment.rules, attrs)) continue;
     }
 
     // Check for existing allocation (write-once guarantee)

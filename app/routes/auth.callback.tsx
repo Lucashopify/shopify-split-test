@@ -95,23 +95,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   console.log("[auth/callback] Shop saved:", dbShop.id);
 
-  // Create metafield definition using direct fetch (avoids SDK GraphQL client throwing on errors)
+  // Create metafield definition with PUBLIC_READ storefront access so Liquid can read it
   try {
-    const gqlResp = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+    const gqlHeaders = {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": access_token,
+    };
+    const gqlUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
+
+    const createResp = await fetch(gqlUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": access_token,
-      },
+      headers: gqlHeaders,
       body: JSON.stringify({
-        query: `
-          mutation EnsureMetafieldDef($definition: MetafieldDefinitionInput!) {
-            metafieldDefinitionCreate(definition: $definition) {
-              createdDefinition { id }
-              userErrors { field message code }
-            }
+        query: `mutation EnsureMetafieldDef($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
           }
-        `,
+        }`,
         variables: {
           definition: {
             namespace: "split_test_app",
@@ -119,16 +120,45 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             name: "Split Test Config",
             type: "json",
             ownerType: "SHOP",
+            access: { storefront: "PUBLIC_READ" },
           },
         },
       }),
     });
-    const gqlData = await gqlResp.json() as { data?: { metafieldDefinitionCreate?: { userErrors?: Array<{ code: string; message: string }> } } };
-    const errs = gqlData.data?.metafieldDefinitionCreate?.userErrors?.filter((e) => e.code !== "TAKEN") ?? [];
-    if (errs.length) {
-      console.warn("[auth/callback] Metafield definition errors:", errs);
+    const createData = await createResp.json() as { data?: { metafieldDefinitionCreate?: { userErrors?: Array<{ code: string; message: string }> } } };
+    const createErrs = createData.data?.metafieldDefinitionCreate?.userErrors ?? [];
+    const taken = createErrs.some((e) => e.code === "TAKEN");
+    const fatal = createErrs.filter((e) => e.code !== "TAKEN");
+    if (fatal.length) console.warn("[auth/callback] Metafield create errors:", fatal);
+
+    // Definition already exists — update it to ensure storefront access is set
+    if (taken) {
+      const updateResp = await fetch(gqlUrl, {
+        method: "POST",
+        headers: gqlHeaders,
+        body: JSON.stringify({
+          query: `mutation UpdateMetafieldDef($definition: MetafieldDefinitionUpdateInput!) {
+            metafieldDefinitionUpdate(definition: $definition) {
+              updatedDefinition { id }
+              userErrors { field message code }
+            }
+          }`,
+          variables: {
+            definition: {
+              namespace: "split_test_app",
+              key: "config",
+              ownerType: "SHOP",
+              access: { storefront: "PUBLIC_READ" },
+            },
+          },
+        }),
+      });
+      const updateData = await updateResp.json() as { data?: { metafieldDefinitionUpdate?: { userErrors?: Array<{ field: string; message: string }> } } };
+      const updateErrs = updateData.data?.metafieldDefinitionUpdate?.userErrors ?? [];
+      if (updateErrs.length) console.warn("[auth/callback] Metafield update errors:", updateErrs);
+      else console.log("[auth/callback] Metafield definition updated with PUBLIC_READ access");
     } else {
-      console.log("[auth/callback] Metafield definition ensured");
+      console.log("[auth/callback] Metafield definition created with PUBLIC_READ access");
     }
   } catch (err) {
     console.error("[auth/callback] Metafield definition setup failed (non-fatal):", err);

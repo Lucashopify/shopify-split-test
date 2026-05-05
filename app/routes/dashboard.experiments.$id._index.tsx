@@ -1,8 +1,4 @@
-import {
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from "react-router";
-import { useLoaderData, useNavigate, useFetcher } from "react-router";
+import { data, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -21,13 +17,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       variants: {
         orderBy: [{ isControl: "desc" }, { createdAt: "asc" }],
       },
+      segment: { select: { id: true, name: true } },
       _count: { select: { allocations: true, events: true, orders: true } },
     },
   });
 
   if (!experiment) throw new Response("Experiment not found", { status: 404 });
 
-  return Response.json({ experiment }, { headers: { "Set-Cookie": setCookie } });
+  const segments = await prisma.segment.findMany({
+    where: { shopId: shop.id },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return data({ experiment, segments }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -64,6 +67,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return { ok: true };
   }
 
+  if (intent === "update_segment") {
+    const segmentId = formData.get("segmentId");
+    await prisma.experiment.update({
+      where: { id: exp.id },
+      data: { segmentId: segmentId ? String(segmentId) : null },
+    });
+    try {
+      await syncConfigToMetafield(admin, shop.id);
+    } catch (err) {
+      console.error("[action] Failed to sync config metafield:", err);
+    }
+    return { ok: true };
+  }
+
   return { error: "Unknown intent" };
 };
 
@@ -75,9 +92,10 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results"];
 
 export default function ExperimentDetail() {
-  const { experiment } = useLoaderData<typeof loader>();
+  const { experiment, segments } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const segmentFetcher = useFetcher();
   const [tab, setTab] = useState(0);
 
   const status = experiment.status as ExperimentStatus;
@@ -186,6 +204,33 @@ export default function ExperimentDetail() {
           <DetailRow label="Traffic allocation" value={`${experiment.trafficAllocation}%`} />
           <DetailRow label="Target template" value={experiment.targetTemplate ?? "All pages"} />
           <DetailRow label="Created" value={new Date(experiment.createdAt).toLocaleString()} />
+          {/* Segment selector */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.75rem 0", borderBottom: "1px solid #f5f5f5" }}>
+            <span style={{ width: 180, fontSize: "0.8125rem", color: "#999", flexShrink: 0, paddingTop: "0.25rem" }}>Segment</span>
+            <segmentFetcher.Form method="post" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <input type="hidden" name="intent" value="update_segment" />
+              <select
+                name="segmentId"
+                defaultValue={experiment.segment?.id ?? ""}
+                onChange={(e) => segmentFetcher.submit(e.currentTarget.form!)}
+                style={{ padding: "0.3rem 0.6rem", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#111", background: "#fff", cursor: "pointer" }}
+              >
+                <option value="">— No segment (all visitors) —</option>
+                {segments.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {segments.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard/segments/new")}
+                  style={{ fontSize: "0.75rem", color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  + Create a segment
+                </button>
+              )}
+            </segmentFetcher.Form>
+          </div>
         </div>
       )}
 

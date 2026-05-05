@@ -8,7 +8,7 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import type { LinksFunction } from "react-router";
 import { authenticate } from "../shopify.server";
 
-function RouterLink({ url, children, ...rest }: { url: string; children: React.ReactNode; [key: string]: unknown }) {
+function RouterLink({ url, children, ...rest }: { url: string; children?: React.ReactNode; [key: string]: unknown }) {
   return <Link to={url} {...(rest as any)}>{children}</Link>;
 }
 
