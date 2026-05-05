@@ -28,7 +28,7 @@ export async function requireDashboardSession(request: Request) {
   });
 
   if (!dbSession?.accessToken) {
-    throw redirect(`/?shop=${shop}`);
+    throw redirect(`/auth?shop=${shop}`);
   }
 
   const { admin } = await unauthenticated.admin(shop);

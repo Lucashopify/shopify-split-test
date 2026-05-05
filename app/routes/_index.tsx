@@ -5,9 +5,14 @@ import { login } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
-  // Redirect to dashboard if shop param is present (post-OAuth redirect from Shopify)
-  if (url.searchParams.get("shop")) {
-    throw redirect(`/dashboard?${url.searchParams.toString()}`);
+  const shop = url.searchParams.get("shop");
+  if (shop) {
+    // Only redirect to dashboard if the shop has an active session (post-OAuth)
+    const { prisma } = await import("../db.server");
+    const session = await prisma.session.findFirst({
+      where: { shop, accessToken: { not: "" } },
+    });
+    if (session) throw redirect(`/dashboard?${url.searchParams.toString()}`);
   }
 
   return {};
