@@ -8,10 +8,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = url.searchParams.get("shop");
   if (shop) {
     const { prisma } = await import("../db.server");
-    const session = await prisma.session.findFirst({
-      where: { shop, accessToken: { not: "" } },
+    const shopRecord = await prisma.shop.findFirst({
+      where: { shopDomain: shop, uninstalledAt: null, accessToken: { not: "" } },
     });
-    if (session) throw redirect(`/dashboard?shop=${shop}`);
+    if (shopRecord) throw redirect(`/dashboard?shop=${shop}`);
   }
 
   return {};

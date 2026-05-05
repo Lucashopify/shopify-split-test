@@ -23,12 +23,12 @@ export async function requireDashboardSession(request: Request) {
 
   if (!shop) throw redirect("/");
 
-  const dbSession = await prisma.session.findUnique({
-    where: { id: `offline_${shop}` },
+  const dbShop = await prisma.shop.findFirst({
+    where: { shopDomain: shop, uninstalledAt: null, accessToken: { not: "" } },
   });
 
-  if (!dbSession?.accessToken) {
-    throw redirect(`/auth?shop=${shop}`);
+  if (!dbShop?.accessToken) {
+    throw redirect(`/?shop=${shop}`);
   }
 
   const { admin } = await unauthenticated.admin(shop);
