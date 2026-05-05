@@ -57,7 +57,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (statusMap[intent]) {
     await prisma.experiment.update({
       where: { id: exp.id },
-      data: { status: statusMap[intent] },
+      data: {
+        status: statusMap[intent],
+        // Record first time the experiment goes live
+        ...(statusMap[intent] === "RUNNING" && !exp.startAt ? { startAt: new Date() } : {}),
+      },
     });
     try {
       await syncConfigToMetafield(admin, shop.id);
@@ -82,11 +86,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (intent === "update_guardrails") {
+    const minDays = parseInt(String(formData.get("minimumRuntimeDays") ?? "7"), 10);
     await prisma.experiment.update({
       where: { id: exp.id },
       data: {
         autoStopSrm: formData.get("autoStopSrm") === "true",
         autoStopRevDrop: formData.get("autoStopRevDrop") === "true",
+        minimumRuntimeDays: isNaN(minDays) ? 7 : minDays,
       },
     });
     return { ok: true };
@@ -113,6 +119,14 @@ export default function ExperimentDetail() {
   const status = experiment.status as ExperimentStatus;
   const type = experiment.type as ExperimentType;
   const isSubmitting = fetcher.state !== "idle";
+
+  // Runtime guardrail calculations
+  const startAt = experiment.startAt ? new Date(experiment.startAt) : null;
+  const runtimeMs = startAt ? Date.now() - startAt.getTime() : 0;
+  const runtimeDays = runtimeMs / (1000 * 60 * 60 * 24);
+  const minDays = experiment.minimumRuntimeDays ?? 7;
+  const belowMinRuntime = status === "RUNNING" && startAt !== null && runtimeDays < minDays;
+  const daysRemaining = Math.ceil(minDays - runtimeDays);
 
   // Optimistic status: use pending intent while fetcher is submitting
   const pendingIntent = fetcher.formData?.get("intent") as string | undefined;
@@ -195,6 +209,34 @@ export default function ExperimentDetail() {
         ))}
       </div>
 
+      {/* Novelty effect warning */}
+      {experiment.noveltyFlagged && (
+        <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1rem", lineHeight: 1 }}>⚠</span>
+          <div>
+            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#92400e", marginBottom: "0.2rem" }}>Novelty effect detected</div>
+            <div style={{ fontSize: "0.75rem", color: "#78350f", lineHeight: 1.5 }}>
+              A treatment variant had significantly higher CVR in the first 48 hours than in subsequent days (≥40% drop-off). This suggests returning customers are inflating early results. Wait for the novelty effect to stabilise before making a decision — typically 2–3 more business cycles.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Minimum runtime warning */}
+      {belowMinRuntime && (
+        <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+          <span style={{ fontSize: "1rem", lineHeight: 1 }}>ℹ</span>
+          <div>
+            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#1e40af", marginBottom: "0.2rem" }}>
+              Minimum runtime not reached ({daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining)
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#1d4ed8", lineHeight: 1.5 }}>
+              Stopping before {minDays} days risks peeking bias — early results are volatile and the day-of-week cycle hasn't completed. Results stopped this early are unreliable for decision-making.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{ borderBottom: "1px solid #e9e9e9", marginBottom: "1.5rem", display: "flex", gap: "0" }}>
         {TABS.map((t, i) => (
@@ -252,6 +294,7 @@ export default function ExperimentDetail() {
             <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
               <guardrailFetcher.Form method="post" data-guardrail-form>
                 <input type="hidden" name="intent" value="update_guardrails" />
+                <input type="hidden" name="minimumRuntimeDays" value={String(experiment.minimumRuntimeDays ?? 7)} />
                 <GuardrailRow
                   name="autoStopSrm"
                   value={experiment.autoStopSrm}
@@ -269,9 +312,8 @@ export default function ExperimentDetail() {
                 <GuardrailRow
                   name="autoStopRevDrop"
                   value={experiment.autoStopRevDrop}
-                  label="Control revenue / CVR drop"
-                  description="Pauses if the control variant's conversion rate drops more than 20% below its first-hour baseline. Catches regressions where the experiment itself (e.g. a broken variant) hurts the store's baseline performance. Requires ≥200 control sessions."
-                  last
+                  label="Control CVR drop"
+                  description="Pauses if the control variant's conversion rate drops more than 20% below its first-hour baseline. Catches regressions where a broken variant hurts your store's baseline. Requires ≥200 control sessions."
                   onChange={(v) => {
                     const form = document.querySelector<HTMLFormElement>("[data-guardrail-form]");
                     if (form) {
@@ -281,6 +323,30 @@ export default function ExperimentDetail() {
                     }
                   }}
                 />
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#111", marginBottom: "0.25rem" }}>Minimum runtime</div>
+                    <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>
+                      Show a warning when trying to stop the experiment before this many days. Prevents peeking bias and ensures at least one full day-of-week cycle.
+                    </div>
+                  </div>
+                  <select
+                    defaultValue={String(experiment.minimumRuntimeDays ?? 7)}
+                    onChange={(e) => {
+                      const form = document.querySelector<HTMLFormElement>("[data-guardrail-form]");
+                      if (form) {
+                        const fd = new FormData(form);
+                        fd.set("minimumRuntimeDays", e.target.value);
+                        guardrailFetcher.submit(fd, { method: "post" });
+                      }
+                    }}
+                    style={{ padding: "0.3rem 0.6rem", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#111", background: "#fff", cursor: "pointer", flexShrink: 0 }}
+                  >
+                    {[3, 5, 7, 14, 21].map((d) => (
+                      <option key={d} value={String(d)}>{d} days</option>
+                    ))}
+                  </select>
+                </div>
               </guardrailFetcher.Form>
             </div>
             <p style={{ fontSize: "0.7rem", color: "#bbb", margin: "0.5rem 0 0", lineHeight: 1.5 }}>

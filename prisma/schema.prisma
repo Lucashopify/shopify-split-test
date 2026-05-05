@@ -104,6 +104,8 @@ model Experiment {
   // Auto-pause triggers
   autoStopSrm           Boolean          @default(true)
   autoStopRevDrop       Boolean          @default(true)
+  noveltyFlagged        Boolean          @default(false)
+  minimumRuntimeDays    Int              @default(7)
 
   // Stats config
   primaryMetric         String           @default("conversion_rate")

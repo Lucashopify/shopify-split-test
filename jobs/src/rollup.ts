@@ -107,7 +107,7 @@ function chiSquaredPValue(observed: number[], expected: number[]): number {
 // Core rollup
 // ---------------------------------------------------------------------------
 
-type Experiment = Awaited<ReturnType<typeof prisma.experiment.findMany>>[number];
+type Experiment = Awaited<ReturnType<typeof prisma.experiment.findMany<{ include: { variants: true } }>>>[number];
 
 async function rollupExperiment(exp: Experiment) {
   const { id: experimentId, shopId, variants, autoStopSrm, autoStopRevDrop } = exp;
@@ -278,7 +278,59 @@ async function rollupExperiment(exp: Experiment) {
     });
   }
 
-  // ── 7. Auto-pause if any guardrail fired ─────────────────────────────────
+  // ── 7. Novelty effect detection ──────────────────────────────────────────
+  // Only runs after ≥72h of data. Compares treatment CVR in first 48h vs days 3+.
+  // A novelty effect inflates early results; if we detect it we flag (not pause).
+  const experimentAgeMs = exp.startAt ? Date.now() - exp.startAt.getTime() : 0;
+  const NOVELTY_MIN_AGE_MS = 72 * 60 * 60 * 1000; // 3 days minimum before we can compare
+  let noveltyFlagged = exp.noveltyFlagged; // preserve existing flag
+
+  if (!noveltyFlagged && experimentAgeMs >= NOVELTY_MIN_AGE_MS && exp.startAt) {
+    const cutoff48h = new Date(exp.startAt.getTime() + 48 * 60 * 60 * 1000);
+
+    for (const treatment of treatments) {
+      const [early, later] = await Promise.all([
+        prisma.experimentResult.aggregate({
+          where: { experimentId, variantId: treatment.variantId, windowStart: { lt: cutoff48h } },
+          _sum: { sessions: true, conversionCount: true },
+        }),
+        prisma.experimentResult.aggregate({
+          where: { experimentId, variantId: treatment.variantId, windowStart: { gte: cutoff48h } },
+          _sum: { sessions: true, conversionCount: true },
+        }),
+      ]);
+
+      const earlySessions = early._sum.sessions ?? 0;
+      const earlyCvr = earlySessions > 0 ? (early._sum.conversionCount ?? 0) / earlySessions : 0;
+      const laterSessions = later._sum.sessions ?? 0;
+      const laterCvr = laterSessions > 0 ? (later._sum.conversionCount ?? 0) / laterSessions : 0;
+
+      // Flag if early CVR is ≥40% higher than later CVR, with enough data
+      if (earlySessions >= 100 && laterSessions >= 100 && laterCvr > 0 && earlyCvr >= laterCvr * 1.4) {
+        noveltyFlagged = true;
+        console.warn(
+          `[rollup] Novelty effect detected for experiment ${experimentId} variant ${treatment.variantId}: ` +
+          `early CVR ${(earlyCvr * 100).toFixed(2)}% vs later ${(laterCvr * 100).toFixed(2)}%`,
+        );
+
+        await prisma.$transaction([
+          prisma.experiment.update({ where: { id: experimentId }, data: { noveltyFlagged: true } }),
+          prisma.auditLog.create({
+            data: {
+              shopId,
+              experimentId,
+              actor: "system",
+              action: "experiment.novelty_flagged",
+              after: { variantId: treatment.variantId, earlyCvr, laterCvr },
+            },
+          }),
+        ]);
+        break;
+      }
+    }
+  }
+
+  // ── 8. Auto-pause if any guardrail fired ─────────────────────────────────
   const shouldPause = (autoStopSrm && srmFlagged) || (autoStopRevDrop && revenueDrop);
 
   if (shouldPause) {
