@@ -1,4 +1,4 @@
-import { data, useFetcher, useLoaderData, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
+import { data, redirect, useFetcher, useLoaderData, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { syncConfigToMetafield, ensureMetafieldDefinition } from "../lib/experiments/config.server";
@@ -64,12 +64,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === "reauth") {
+    const shopParam = String(formData.get("shop") ?? "").trim().toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "");
+    const normalized = shopParam.includes(".myshopify.com") ? shopParam : `${shopParam}.myshopify.com`;
+    const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+    const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+    const scopes = process.env.SCOPES ?? "";
+    const redirectUri = `${appUrl}/auth/callback`;
+    const state = Math.random().toString(36).slice(2);
+    const oauthUrl =
+      `https://${normalized}/admin/oauth/authorize` +
+      `?client_id=${apiKey}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&state=${state}` +
+      `&grant_options[]=offline`;
+    throw redirect(oauthUrl);
+  }
+
   const { shop: shopDomain, setCookie, admin } = await requireDashboardSession(request);
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
   if (!shop) return data({ error: "Shop not found" }, { headers: { "Set-Cookie": setCookie } });
-
-  const formData = await request.formData();
-  const intent = String(formData.get("intent"));
 
   if (intent === "force_sync") {
     try {
@@ -132,7 +152,8 @@ export default function SettingsPage() {
           <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
             Shopify is returning 403 Forbidden on all metafield API calls. This means the installed access token has been invalidated or revoked — likely because the app's scopes were changed in the Partner Dashboard after the initial install. Re-authorizing issues a fresh token and fixes the issue.
           </p>
-          <form method="post" action="/">
+          <fetcher.Form method="post">
+            <input type="hidden" name="intent" value="reauth" />
             <input type="hidden" name="shop" value={myshopifyDomain} />
             <button
               type="submit"
@@ -140,7 +161,7 @@ export default function SettingsPage() {
             >
               Re-authorize app →
             </button>
-          </form>
+          </fetcher.Form>
         </div>
       )}
 
