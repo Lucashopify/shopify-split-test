@@ -7,16 +7,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const shop = url.searchParams.get("shop");
   if (shop) {
-    const { prisma } = await import("../db.server");
-    const session = await prisma.session.findFirst({
-      where: { shop, accessToken: { not: "" } },
-    });
-    if (session) {
-      throw redirect(`/dashboard?${url.searchParams.toString()}`);
-    } else {
-      // No session yet — trigger OAuth install
-      throw redirect(`/auth?${url.searchParams.toString()}`);
-    }
+    // Shopify app launch — let the embedded app route handle auth/token exchange
+    throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
   return {};
