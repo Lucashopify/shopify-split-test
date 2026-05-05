@@ -27,6 +27,7 @@ export function corsHeaders(
 
   if (origin && isAllowedOrigin(origin)) {
     headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Allow-Credentials"] = "true";
   } else {
     // Fallback: allow from any origin (storefront domains are merchant-controlled)
     headers["Access-Control-Allow-Origin"] = "*";
