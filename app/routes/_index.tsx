@@ -5,8 +5,8 @@ import { login } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
-  // Only redirect to dashboard when both shop + host are present (post-OAuth redirect from Shopify)
-  if (url.searchParams.get("shop") && url.searchParams.get("host")) {
+  // Redirect to dashboard if shop param is present (post-OAuth redirect from Shopify)
+  if (url.searchParams.get("shop")) {
     throw redirect(`/dashboard?${url.searchParams.toString()}`);
   }
 
