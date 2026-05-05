@@ -45,10 +45,18 @@ export async function runRollup(experimentId: string) {
 
   const { shopId, variants, autoStopSrm, autoStopRevDrop } = exp;
 
+  // Clean up any duplicate rows created by previous manual refreshes with non-hour-aligned windowStart
+  await prisma.$executeRaw`
+    DELETE FROM "ExperimentResult"
+    WHERE "experimentId" = ${experimentId}
+    AND (EXTRACT(MINUTE FROM "windowStart") != 0 OR EXTRACT(SECOND FROM "windowStart") != 0)
+  `;
+
   const now = new Date();
-  const windowEnd = new Date(now); // use current time so in-progress hour is included
-  const windowStart = new Date(windowEnd);
-  windowStart.setHours(windowStart.getHours() - 1);
+  const windowEnd = new Date(now);
+  // Truncate to the hour so repeated manual refreshes upsert the same row
+  const windowStart = new Date(now);
+  windowStart.setMinutes(0, 0, 0);
 
   console.log(`[rollup] window: ${windowStart.toISOString()} → ${windowEnd.toISOString()}`);
   console.log(`[rollup] variants: ${variants.map((v) => `${v.id}(${v.name})`).join(", ")}`);
