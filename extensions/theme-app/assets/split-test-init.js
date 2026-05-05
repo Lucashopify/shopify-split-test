@@ -183,17 +183,54 @@
       return 'desktop';
     }
 
+    function sendEvent(type, extra) {
+      if (!hasConsent()) return;
+      if (!Object.keys(asgn).length) return; // no experiments — nothing to record
+      var payload = { type: type, visitorId: visitorId, assignments: asgn, shopDomain: shop, pageUrl: location.href, device: getDevice(), ts: Date.now() };
+      if (extra) { for (var k in extra) payload[k] = extra[k]; }
+      sendBeacon(apiUrl + '/api/events', JSON.stringify(payload));
+    }
+
     function sendPageView() {
       if (!hasConsent()) return;
       sendBeacon(apiUrl + '/api/events', JSON.stringify({
-        type: 'PAGE_VIEW',
-        visitorId: visitorId,
-        assignments: asgn,
-        shopDomain: shop,
-        pageUrl: location.href,
-        device: getDevice(),
-        ts: Date.now(),
+        type: 'PAGE_VIEW', visitorId: visitorId, assignments: asgn,
+        shopDomain: shop, pageUrl: location.href, device: getDevice(), ts: Date.now(),
       }));
+    }
+
+    // Deduplicate ATC events within a short window so rapid re-fires
+    // (form submit + cart:add on the same interaction) only record once.
+    var _lastAtc = 0;
+    function sendAtc() {
+      var now = Date.now();
+      if (now - _lastAtc < 500) return;
+      _lastAtc = now;
+      sendEvent('ADD_TO_CART');
+    }
+
+    function trackAtc() {
+      // 1. Standard form submit to /cart/add (most Shopify themes)
+      d.addEventListener('submit', function(e) {
+        var action = (e.target && (e.target.action || e.target.getAttribute('action'))) || '';
+        if (action.indexOf('/cart/add') !== -1) sendAtc();
+      }, true);
+
+      // 2. Shopify custom DOM events fired by themes and cart drawer JS
+      d.addEventListener('cart:add', sendAtc);
+      d.addEventListener('cart:added', sendAtc);
+      d.addEventListener('items-added', sendAtc); // Dawn theme event
+
+      // 3. Click on common ATC button selectors (covers fetch-based cart adds
+      //    where no form submit fires). Fires optimistically on click.
+      d.addEventListener('click', function(e) {
+        var t = e.target;
+        if (!t) return;
+        var el = t.closest
+          ? t.closest('[data-add-to-cart],[name="add"],[data-action="add-to-cart"],[data-btn-addtocart],.add_to_cart,.btn--add-to-cart')
+          : null;
+        if (el) sendAtc();
+      }, true);
     }
 
     function syncCart() {
@@ -252,6 +289,7 @@
       syncCart();
       confirmAssign();
       applyPriceAdj();
+      trackAtc();
     }
 
     if (d.readyState === 'loading') {
