@@ -7,12 +7,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const shop = url.searchParams.get("shop");
   if (shop) {
-    // Only redirect to dashboard if the shop has an active session (post-OAuth)
     const { prisma } = await import("../db.server");
     const session = await prisma.session.findFirst({
       where: { shop, accessToken: { not: "" } },
     });
-    if (session) throw redirect(`/dashboard?${url.searchParams.toString()}`);
+    if (session) {
+      throw redirect(`/dashboard?${url.searchParams.toString()}`);
+    } else {
+      // No session yet — trigger OAuth install
+      throw redirect(`/auth?${url.searchParams.toString()}`);
+    }
   }
 
   return {};
