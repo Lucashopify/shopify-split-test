@@ -1,102 +1,17 @@
 {% comment %}
   Split Test App — storefront embed block
   Enable via Theme Editor → App embeds → Split Test Embed
-  Config is read from shop metafield at Liquid render time — no extra API call on storefront.
 {% endcomment %}
 
-{%- assign spt_raw = shop.metafields.split_test_app.config.value -%}
-{%- if spt_raw == blank -%}{% comment %}No config — nothing to do{% endcomment %}{%- else -%}
-
 <script>
-(function(w,d){
-  /* ── config (inlined by Liquid) ─────────────────────────────────── */
-  var cfg={{ spt_raw }};
-  var exps=cfg.experiments||[];
-  var apiUrl=(cfg.apiUrl||'').replace(/\/$/,'');
-  if(!exps.length||!apiUrl)return;
-
-  /* ── constants ───────────────────────────────────────────────────── */
-  var VC='spt_vid',AC='spt_asgn';
-  var YEAR=31536000;
-  var https=location.protocol==='https:';
-  var csfx='; Path=/; Max-Age='+YEAR+'; SameSite=Lax'+(https?'; Secure':'');
-
-  /* ── cookie helpers ──────────────────────────────────────────────── */
-  function gc(n){var m=d.cookie.match('(?:^|;)\\s*'+n+'=([^;]+)');return m?decodeURIComponent(m[1]):null;}
-  function sc(n,v){d.cookie=n+'='+encodeURIComponent(v)+csfx;}
-
-  /* ── visitor token ───────────────────────────────────────────────── */
-  function r32(){
-    try{return(crypto.getRandomValues(new Uint32Array(1))[0]>>>0).toString(16).padStart(8,'0');}
-    catch(e){return(Math.random()*0xFFFFFFFF>>>0).toString(16).padStart(8,'0');}
-  }
-  function vid(){var v=gc(VC);if(!v){v=r32()+r32()+r32()+r32();sc(VC,v);}return v;}
-
-  /* ── FNV-1a 32-bit hash ──────────────────────────────────────────── */
-  function fnv(s){var h=2166136261;for(var i=0;i<s.length;i++){h=(h^s.charCodeAt(i));h=(h*16777619)>>>0;}return h;}
-  function bkt(v,e){return fnv(v+':'+e)%100;}
-
-  /* ── assignment cookie ───────────────────────────────────────────── */
-  function getAsgn(){try{return JSON.parse(gc(AC)||'{}');}catch(e){return{};}}
-  function saveAsgn(a){sc(AC,JSON.stringify(a));}
-
-  /* ── main assignment loop ────────────────────────────────────────── */
-  var visitorId=vid();
-  var asgn=getAsgn();
-  var changed=false;
-  var html=d.documentElement;
-
-  html.classList.add('spt-loading');
-
-  for(var i=0;i<exps.length;i++){
-    var exp=exps[i];
-    if(exp.status!=='RUNNING')continue;
-    var allocB=fnv(visitorId+':'+exp.id+':alloc')%100;
-    if(allocB>=(exp.trafficAllocation||100))continue;
-    var varId=asgn[exp.id];
-    if(!varId){
-      var b=bkt(visitorId,exp.id),cum=0,vs=exp.variants||[];
-      for(var j=0;j<vs.length;j++){cum+=vs[j].trafficWeight||0;if(b<cum){varId=vs[j].id;break;}}
-      if(varId){asgn[exp.id]=varId;changed=true;}
-    }
-    if(varId){html.classList.add('spt-e-'+exp.id.slice(-8)+'-v-'+varId.slice(-8));}
-  }
-
-  html.classList.remove('spt-loading');
-  html.classList.add('spt-ready');
-  if(changed)saveAsgn(asgn);
-
-  /* ── variant application ─────────────────────────────────────────── */
-  for(var k=0;k<exps.length;k++){
-    var eA=exps[k];
-    if(eA.status!=='RUNNING')continue;
-    var vId=asgn[eA.id];
-    if(!vId)continue;
-    var vs2=eA.variants||[],av=null;
-    for(var m=0;m<vs2.length;m++){if(vs2[m].id===vId){av=vs2[m];break;}}
-    if(!av||av.isControl)continue;
-    if(eA.type==='URL_REDIRECT'&&av.redirectUrl){
-      if(location.pathname+location.search!==av.redirectUrl&&location.href!==av.redirectUrl){
-        w.location.replace(av.redirectUrl);return;
-      }
-    }
-    if(eA.type==='PRICE'&&av.priceAdjValue!=null){
-      html.setAttribute('data-spt-price-adj-type',av.priceAdjType||'percent');
-      html.setAttribute('data-spt-price-adj-value',String(av.priceAdjValue));
-    }
-  }
-
-  /* ── expose globals ──────────────────────────────────────────────── */
-  w.__SPT_VID__=visitorId;
-  w.__SPT_ASGN__=asgn;
-  w.__SPT_CFG__=cfg;
-
-})(window,document);
+  window.__SPT_SHOP__ = {{ shop.myshopify_domain | json }};
+  {%- assign spt_raw = shop.metafields.split_test_app.config.value -%}
+  {%- if spt_raw != blank -%}
+  window.__SPT_CFG_INLINE__ = {{ spt_raw }};
+  {%- endif -%}
 </script>
 
-{{ 'split-test-events.js' | asset_url | script_tag }}
-
-{%- endif -%}
+{{ 'split-test-init.js' | asset_url | script_tag }}
 
 {% schema %}
 {
