@@ -10,7 +10,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/dashboard?${url.searchParams.toString()}`);
   }
 
-  return login(request);
+  return {};
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
