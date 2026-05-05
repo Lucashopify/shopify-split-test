@@ -50,6 +50,18 @@ export async function runRollup(experimentId: string) {
   const windowStart = new Date(windowEnd);
   windowStart.setHours(windowStart.getHours() - 1);
 
+  console.log(`[rollup] window: ${windowStart.toISOString()} → ${windowEnd.toISOString()}`);
+  console.log(`[rollup] variants: ${variants.map((v) => `${v.id}(${v.name})`).join(", ")}`);
+
+  // Debug: count all orders for this experiment regardless of window
+  const totalOrders = await prisma.order.count({ where: { experimentId } });
+  const totalOrdersAnyVariant = await prisma.order.findMany({
+    where: { experimentId },
+    select: { id: true, variantId: true, processedAt: true, revenue: true },
+  });
+  console.log(`[rollup] total orders for experiment: ${totalOrders}`);
+  console.log(`[rollup] order details: ${JSON.stringify(totalOrdersAnyVariant)}`);
+
   const variantMetrics = [];
 
   for (const variant of variants) {
@@ -65,6 +77,7 @@ export async function runRollup(experimentId: string) {
 
     const uniqueVisitors = uniqueVisitorRows.length;
     const revenue = revenueAgg._sum.revenue ?? 0;
+    console.log(`[rollup] variant ${variant.name}: sessions=${sessions} orders=${conversionCount} revenue=${revenue}`);
     variantMetrics.push({
       variantId: variant.id,
       isControl: variant.isControl,
