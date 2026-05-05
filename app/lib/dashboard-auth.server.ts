@@ -1,6 +1,5 @@
 import { redirect, createCookieSessionStorage } from "react-router";
 import { prisma } from "../db.server";
-import { unauthenticated } from "../shopify.server";
 
 const sessionStorage = createCookieSessionStorage({
   cookie: {
@@ -31,7 +30,29 @@ export async function requireDashboardSession(request: Request) {
     throw redirect(`/?shop=${shop}`);
   }
 
-  const { admin } = await unauthenticated.admin(shop);
+  const token = dbShop.accessToken;
+  const gqlUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
+
+  // Build a lightweight admin client directly from the stored token so we always
+  // use the latest access token from the Shop table (unauthenticated.admin relies
+  // on PrismaSessionStorage which can return a stale/invalidated token after reauth).
+  const admin = {
+    graphql: async (
+      query: string,
+      options?: { variables?: Record<string, unknown> },
+    ): Promise<Response> => {
+      const body: Record<string, unknown> = { query };
+      if (options?.variables) body.variables = options.variables;
+      return fetch(gqlUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": token,
+        },
+        body: JSON.stringify(body),
+      });
+    },
+  };
 
   // Persist shop in the signed cookie session on every request
   cookieSession.set("shop", shop);
