@@ -210,19 +210,26 @@ export async function recordEvent(input: {
 
   // Write one Event row per experiment the visitor is assigned to
   for (const [experimentId, variantId] of Object.entries(assignments)) {
-    await prisma.event.create({
-      data: {
-        shopId,
-        experimentId,
-        variantId,
-        visitorId: visitor.id,
-        type: eventType,
-        url: pageUrl,
-        elementId,
-        metadata: metadata as never,
-        occurredAt: occurredAt ?? new Date(),
-      },
-    });
+    try {
+      await prisma.event.create({
+        data: {
+          shopId,
+          experimentId,
+          variantId,
+          visitorId: visitor.id,
+          type: eventType,
+          url: pageUrl,
+          elementId,
+          metadata: metadata as never,
+          occurredAt: occurredAt ?? new Date(),
+        },
+      });
+    } catch (err: unknown) {
+      // Stale cookie — experimentId/variantId no longer exists; skip silently
+      const code = (err as { code?: string })?.code;
+      if (code === "P2003" || code === "P2025") continue;
+      throw err;
+    }
   }
 }
 
