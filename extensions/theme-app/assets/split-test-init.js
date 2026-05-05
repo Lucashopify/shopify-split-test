@@ -78,6 +78,21 @@
         html.setAttribute('data-spt-price-adj-type', av.priceAdjType || 'percent');
         html.setAttribute('data-spt-price-adj-value', String(av.priceAdjValue));
       }
+      if (eA.type === 'THEME' && av.themeId) {
+        // Extract numeric ID from GID like "gid://shopify/Theme/123456789"
+        var numericId = String(av.themeId).split('/').pop();
+        // Check if already on this preview theme
+        var currentThemeId = w.Shopify && w.Shopify.theme && String(w.Shopify.theme.id);
+        if (currentThemeId !== numericId) {
+          var params = new URLSearchParams(location.search);
+          if (params.get('preview_theme_id') !== numericId) {
+            params.set('preview_theme_id', numericId);
+            params.set('pb', '0');
+            w.location.replace(location.pathname + '?' + params.toString() + location.hash);
+            return;
+          }
+        }
+      }
     }
 
     /* expose for debugging */
