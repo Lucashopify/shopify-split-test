@@ -4,10 +4,10 @@
 {% endcomment %}
 
 <script>
-  window.__SPT_SHOP__ = {{ shop.myshopify_domain | json }};
+  window.__SPT_SHOP__ = {{ shop.permanent_domain | json }};
   {%- assign spt_raw = shop.metafields.split_test_app.config.value -%}
   {%- if spt_raw != blank -%}
-  window.__SPT_CFG_INLINE__ = {{ spt_raw }};
+  window.__SPT_CFG_INLINE__ = {{ spt_raw | json }};
   {%- endif -%}
 </script>
 
