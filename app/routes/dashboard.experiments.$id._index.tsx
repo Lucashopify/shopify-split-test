@@ -30,6 +30,22 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     orderBy: { createdAt: "desc" },
   });
 
+  // Funnel stats for the overview bar
+  const [pageViews, atcCount, checkoutCount, revenueAgg] = await Promise.all([
+    prisma.event.count({ where: { experimentId: experiment.id, type: "PAGE_VIEW" } }),
+    prisma.event.count({ where: { experimentId: experiment.id, type: "ADD_TO_CART" } }),
+    prisma.event.count({ where: { experimentId: experiment.id, type: "INITIATE_CHECKOUT" } }),
+    prisma.order.aggregate({ where: { experimentId: experiment.id }, _sum: { revenue: true } }),
+  ]);
+  const funnel = {
+    visitors: experiment._count.allocations,
+    sessions: pageViews,
+    atc: atcCount,
+    checkout: checkoutCount,
+    orders: experiment._count.orders,
+    revenue: revenueAgg._sum.revenue ?? 0,
+  };
+
   // Aggregate ExperimentResult rows per variant (cumulative across all windows)
   const resultRows = await prisma.experimentResult.groupBy({
     by: ["variantId"],
@@ -58,7 +74,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     _sum: { revenue: true },
   });
 
-  return data({ experiment, segments, resultRows, liveOrders }, { headers: { "Set-Cookie": setCookie } });
+  return data({ experiment, segments, resultRows, liveOrders, funnel }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -143,7 +159,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -230,19 +246,8 @@ export default function ExperimentDetail() {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
-        {[
-          { label: "Visitors", value: experiment._count.allocations.toLocaleString() },
-          { label: "Events", value: experiment._count.events.toLocaleString() },
-          { label: "Orders", value: experiment._count.orders.toLocaleString() },
-        ].map((s, i) => (
-          <div key={s.label} style={{ padding: "1.1rem 1.5rem", borderRight: i < 2 ? "1px solid #e9e9e9" : "none" }}>
-            <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>{s.label}</div>
-            <div style={{ fontSize: "1.375rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111" }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
+      {/* Funnel overview */}
+      <FunnelBar funnel={funnel} />
 
       {/* Novelty effect warning */}
       {experiment.noveltyFlagged && (
@@ -447,6 +452,55 @@ export default function ExperimentDetail() {
               liveOrders={liveOrders}
             />
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FunnelBar({ funnel }: { funnel: { visitors: number; sessions: number; atc: number; checkout: number; orders: number; revenue: number } }) {
+  const { visitors, sessions, atc, checkout, orders, revenue } = funnel;
+  const rate = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
+  const steps = [
+    { label: "Visitors", value: visitors, sub: null },
+    { label: "Sessions", value: sessions, sub: rate(sessions, visitors) },
+    { label: "Add to Cart", value: atc, sub: rate(atc, sessions) },
+    { label: "Checkout", value: checkout, sub: rate(checkout, atc) },
+    { label: "Orders", value: orders, sub: rate(orders, sessions) },
+    { label: "Revenue", value: revenue > 0 ? `$${revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—", sub: orders > 0 ? `$${(revenue / orders).toFixed(2)} AOV` : null },
+  ];
+
+  return (
+    <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}>
+        {steps.map((s, i) => (
+          <div
+            key={s.label}
+            style={{
+              padding: "1rem 1.25rem",
+              borderRight: i < steps.length - 1 ? "1px solid #e9e9e9" : "none",
+              position: "relative",
+            }}
+          >
+            <div style={{ fontSize: "0.68rem", color: "#bbb", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>{s.label}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111" }}>
+              {typeof s.value === "number" ? s.value.toLocaleString() : s.value}
+            </div>
+            {s.sub && (
+              <div style={{ fontSize: "0.7rem", color: "#aaa", marginTop: "0.15rem" }}>{s.sub} conversion</div>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Drop-off bar */}
+      {sessions > 0 && (
+        <div style={{ background: "#f9f9f9", borderTop: "1px solid #f3f3f3", padding: "0.5rem 1.25rem", display: "flex", gap: "1.5rem", alignItems: "center" }}>
+          <span style={{ fontSize: "0.7rem", color: "#bbb" }}>Overall CVR</span>
+          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111" }}>{rate(orders, sessions)}</span>
+          <span style={{ fontSize: "0.7rem", color: "#bbb", marginLeft: "1rem" }}>Revenue / visitor</span>
+          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111" }}>
+            {sessions > 0 && revenue > 0 ? `$${(revenue / sessions).toFixed(2)}` : "—"}
+          </span>
         </div>
       )}
     </div>
