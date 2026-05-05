@@ -117,7 +117,6 @@ export async function ensureMetafieldDefinition(admin: AdminClient): Promise<voi
           description: "Storefront experiment configuration — read by the Split Test theme embed.",
           type: "json",
           ownerType: "SHOP",
-          access: { storefront: "PUBLIC_READ" },
         },
       },
     },

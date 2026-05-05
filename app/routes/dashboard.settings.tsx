@@ -72,8 +72,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     try {
       await ensureMetafieldDefinition(admin);
       await syncConfigToMetafield(admin, shop.id);
-    } catch (err) {
-      console.error("[settings force_sync]", err);
+    } catch (err: unknown) {
+      const gqlErrs = (err as Record<string, unknown>)?.graphQLErrors;
+      console.error("[settings force_sync] error:", gqlErrs ? JSON.stringify(gqlErrs) : String(err));
       return Response.json({ error: "Sync failed — check Railway logs." }, { headers: { "Set-Cookie": setCookie } });
     }
     return Response.json({ ok: true, message: "Config synced to storefront." }, { headers: { "Set-Cookie": setCookie } });
@@ -154,7 +155,7 @@ export default function SettingsPage() {
             <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Metafield definition</div>
             <StatusDot
               ok={metafieldDefinitionExists}
-              label={metafieldDefinitionExists ? "Exists (PUBLIC_READ)" : "Missing — Liquid can't read config"}
+              label={metafieldDefinitionExists ? "Exists" : "Missing — Liquid can't read config"}
             />
           </div>
           <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>

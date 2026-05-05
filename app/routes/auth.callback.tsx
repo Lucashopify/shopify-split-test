@@ -119,7 +119,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             name: "Split Test Config",
             type: "json",
             ownerType: "SHOP",
-            access: { storefront: "PUBLIC_READ" },
           },
         },
       }),
