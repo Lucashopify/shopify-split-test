@@ -69,8 +69,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = String(formData.get("intent"));
 
   if (intent === "force_sync") {
-    await ensureMetafieldDefinition(admin);
-    await syncConfigToMetafield(admin, shop.id);
+    try {
+      await ensureMetafieldDefinition(admin);
+      await syncConfigToMetafield(admin, shop.id);
+    } catch (err) {
+      console.error("[settings force_sync]", err);
+      return Response.json({ error: "Sync failed — check Railway logs." }, { headers: { "Set-Cookie": setCookie } });
+    }
     return Response.json({ ok: true, message: "Config synced to storefront." }, { headers: { "Set-Cookie": setCookie } });
   }
 

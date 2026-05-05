@@ -1,8 +1,6 @@
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import { createHmac } from "crypto";
 import { prisma } from "../db.server";
-import { unauthenticated } from "../shopify.server";
-import { ensureMetafieldDefinition, syncConfigToMetafield } from "../lib/experiments/config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -97,14 +95,44 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   console.log("[auth/callback] Shop saved:", dbShop.id);
 
-  // Set up metafield definition and initial config (best-effort)
+  // Create metafield definition using direct fetch (avoids SDK GraphQL client throwing on errors)
   try {
-    const { admin } = await unauthenticated.admin(shop);
-    await ensureMetafieldDefinition(admin);
-    await syncConfigToMetafield(admin, dbShop.id);
-    console.log("[auth/callback] Metafield definition ensured, config synced");
+    const gqlResp = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": access_token,
+      },
+      body: JSON.stringify({
+        query: `
+          mutation EnsureMetafieldDef($definition: MetafieldDefinitionInput!) {
+            metafieldDefinitionCreate(definition: $definition) {
+              createdDefinition { id }
+              userErrors { field message code }
+            }
+          }
+        `,
+        variables: {
+          definition: {
+            namespace: "split_test_app",
+            key: "config",
+            name: "Split Test Config",
+            type: "json",
+            ownerType: "SHOP",
+            access: { storefront: "PUBLIC_READ" },
+          },
+        },
+      }),
+    });
+    const gqlData = await gqlResp.json() as { data?: { metafieldDefinitionCreate?: { userErrors?: Array<{ code: string; message: string }> } } };
+    const errs = gqlData.data?.metafieldDefinitionCreate?.userErrors?.filter((e) => e.code !== "TAKEN") ?? [];
+    if (errs.length) {
+      console.warn("[auth/callback] Metafield definition errors:", errs);
+    } else {
+      console.log("[auth/callback] Metafield definition ensured");
+    }
   } catch (err) {
-    console.error("[auth/callback] Post-install setup failed (non-fatal):", err);
+    console.error("[auth/callback] Metafield definition setup failed (non-fatal):", err);
   }
 
   throw redirect(`/dashboard?shop=${shop}`);
