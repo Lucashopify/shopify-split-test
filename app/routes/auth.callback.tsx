@@ -32,14 +32,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Exchange authorization code for access token
+  const tokenParams = new URLSearchParams({
+    client_id: process.env.SHOPIFY_API_KEY ?? "",
+    client_secret: process.env.SHOPIFY_API_SECRET ?? "",
+    code,
+    expiring: "1",
+  });
   const tokenResp = await fetch(`https://${shop}/admin/oauth/access_token`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: process.env.SHOPIFY_API_KEY,
-      client_secret: process.env.SHOPIFY_API_SECRET,
-      code,
-    }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: tokenParams.toString(),
   });
 
   if (!tokenResp.ok) {
@@ -48,10 +50,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect("/");
   }
 
-  const { access_token, scope } = (await tokenResp.json()) as {
+  const tokenData = (await tokenResp.json()) as {
     access_token: string;
     scope: string;
+    expires_in?: number;
+    refresh_token?: string;
+    refresh_token_expires_in?: number;
   };
+  const { access_token, scope } = tokenData;
+  const tokenExpiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000)
+    : null;
+  const refreshTokenExpiresAt = tokenData.refresh_token_expires_in
+    ? new Date(Date.now() + tokenData.refresh_token_expires_in * 1000)
+    : null;
 
   console.log("[auth/callback] Token received, scopes:", scope);
 
@@ -79,6 +91,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopDomain: shop,
       accessToken: access_token,
       scopes: scope,
+      ...(tokenExpiresAt && { tokenExpiresAt }),
+      ...(tokenData.refresh_token && { refreshToken: tokenData.refresh_token }),
+      ...(refreshTokenExpiresAt && { refreshTokenExpiresAt }),
       billingPlan: {
         create: {
           planName: "free_trial",
@@ -90,6 +105,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       accessToken: access_token,
       scopes: scope,
       uninstalledAt: null,
+      ...(tokenExpiresAt && { tokenExpiresAt }),
+      ...(tokenData.refresh_token && { refreshToken: tokenData.refresh_token }),
+      ...(refreshTokenExpiresAt && { refreshTokenExpiresAt }),
     },
   });
 

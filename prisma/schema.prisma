@@ -35,8 +35,11 @@ model Shop {
   id                String    @id @default(cuid())
   shopDomain        String    @unique
   myshopifyDomain   String?
-  accessToken       String
-  scopes            String
+  accessToken             String
+  tokenExpiresAt          DateTime?
+  refreshToken            String?
+  refreshTokenExpiresAt   DateTime?
+  scopes                  String
   primaryMarket     String?
   currency          String?
   timezone          String?
