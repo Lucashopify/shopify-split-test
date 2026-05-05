@@ -1,14 +1,6 @@
 import { type LoaderFunctionArgs } from "react-router";
 import { NavLink, Outlet, useLoaderData, useRouteError } from "react-router";
-import { AppProvider as PolarisProvider } from "@shopify/polaris";
-import enTranslations from "@shopify/polaris/locales/en.json";
-import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import type { LinksFunction } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
-
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: polarisStyles },
-];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop, headers } = await requireDashboardSession(request);
@@ -141,7 +133,6 @@ export default function DashboardLayout() {
   const { shop } = useLoaderData<typeof loader>();
 
   return (
-    <PolarisProvider i18n={enTranslations}>
     <div style={S.root}>
       <aside style={S.sidebar}>
         <div style={S.logoArea}>
@@ -182,7 +173,6 @@ export default function DashboardLayout() {
         <Outlet />
       </main>
     </div>
-    </PolarisProvider>
   );
 }
 

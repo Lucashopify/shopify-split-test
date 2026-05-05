@@ -1,21 +1,5 @@
-import {
-  redirect,
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from "react-router";
+import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useActionData, useLoaderData, useNavigate, useSubmit } from "react-router";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  Text,
-  TextField,
-  Select,
-  Banner,
-  InlineGrid,
-  RangeSlider,
-} from "@shopify/polaris";
 import { useState, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -31,13 +15,9 @@ const EXPERIMENT_TYPES = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, shop } = await requireDashboardSession(request); // auth
+  const { admin, shop } = await requireDashboardSession(request);
   let themes: Array<{ id: string; name: string; role: string }> = [];
-  try {
-    themes = await getThemes(admin);
-  } catch (err) {
-    console.error("[new experiment] Failed to fetch themes:", err);
-  }
+  try { themes = await getThemes(admin); } catch {}
   const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
   const segments = dbShop
     ? await prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } })
@@ -46,7 +26,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await requireDashboardSession(request); // auth
+  const { session } = await requireDashboardSession(request);
   const formData = await request.formData();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -63,13 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) return { error: "Shop not found. Try reinstalling the app." };
 
-  // Type-specific variant B fields
-  const variantBData: Record<string, unknown> = {
-    name: variantName,
-    isControl: false,
-    trafficWeight: 50,
-  };
-
+  const variantBData: Record<string, unknown> = { name: variantName, isControl: false, trafficWeight: 50 };
   if (type === "THEME") {
     const themeId = String(formData.get("variantThemeId") ?? "").trim();
     if (themeId) variantBData.themeId = themeId;
@@ -93,16 +67,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       type,
       trafficAllocation,
       segmentId,
-      variants: {
-        create: [
-          { name: controlName, isControl: true, trafficWeight: 50 },
-          variantBData as any,
-        ],
-      },
+      variants: { create: [{ name: controlName, isControl: true, trafficWeight: 50 }, variantBData as any] },
     },
   });
 
   return redirect(`/dashboard/experiments/${experiment.id}`);
+};
+
+const input: React.CSSProperties = {
+  width: "100%",
+  padding: "0.5rem 0.75rem",
+  border: "1px solid #e9e9e9",
+  borderRadius: 6,
+  fontSize: "0.875rem",
+  color: "#111",
+  outline: "none",
+  boxSizing: "border-box",
+  background: "#fff",
+};
+const label: React.CSSProperties = {
+  display: "block",
+  fontSize: "0.8125rem",
+  color: "#555",
+  marginBottom: "0.375rem",
+};
+const card: React.CSSProperties = {
+  border: "1px solid #e9e9e9",
+  borderRadius: 8,
+  padding: "1.5rem",
+  marginBottom: "1.25rem",
+};
+const cardTitle: React.CSSProperties = {
+  fontSize: "0.8125rem",
+  fontWeight: 600,
+  color: "#111",
+  marginBottom: "1rem",
+};
+const helpText: React.CSSProperties = {
+  fontSize: "0.75rem",
+  color: "#aaa",
+  marginTop: "0.375rem",
 };
 
 export default function NewExperiment() {
@@ -113,13 +117,11 @@ export default function NewExperiment() {
 
   const [name, setName] = useState("");
   const [hypothesis, setHypothesis] = useState("");
-  const [type, setType] = useState<string>("THEME");
-  const [trafficAllocation, setTrafficAllocation] = useState<number>(100);
+  const [type, setType] = useState("THEME");
+  const [trafficAllocation, setTrafficAllocation] = useState(100);
   const [controlName, setControlName] = useState("Control");
   const [variantName, setVariantName] = useState("Variant B");
   const [segmentId, setSegmentId] = useState("");
-
-  // Type-specific state
   const [variantThemeId, setVariantThemeId] = useState("");
   const [variantRedirectUrl, setVariantRedirectUrl] = useState("");
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
@@ -128,10 +130,7 @@ export default function NewExperiment() {
 
   const themeOptions = [
     { label: "— Select a theme —", value: "" },
-    ...themes.map((t) => ({
-      label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`,
-      value: t.id,
-    })),
+    ...themes.map((t) => ({ label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`, value: t.id })),
   ];
 
   const handleSubmit = useCallback(() => {
@@ -144,13 +143,8 @@ export default function NewExperiment() {
     fd.set("variantName", variantName);
     if (type === "THEME") fd.set("variantThemeId", variantThemeId);
     if (type === "URL_REDIRECT") fd.set("variantRedirectUrl", variantRedirectUrl);
-    if (type === "PRICE") {
-      fd.set("variantPriceAdjType", variantPriceAdjType);
-      fd.set("variantPriceAdjValue", variantPriceAdjValue);
-    }
-    if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) {
-      fd.set("variantCustomLiquid", variantCustomLiquid);
-    }
+    if (type === "PRICE") { fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); }
+    if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) fd.set("variantCustomLiquid", variantCustomLiquid);
     if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
   }, [name, hypothesis, type, trafficAllocation, controlName, variantName,
@@ -158,176 +152,154 @@ export default function NewExperiment() {
       variantCustomLiquid, segmentId, submit]);
 
   return (
-    <Page
-      title="New experiment"
-      backAction={{ content: "Experiments", onAction: () => navigate("/dashboard/experiments") }}
-      primaryAction={{
-        content: "Create experiment",
-        onAction: handleSubmit,
-        disabled: !name,
-      }}
-    >
-      <Layout>
-        {actionData?.error && (
-          <Layout.Section>
-            <Banner tone="critical">{actionData.error}</Banner>
-          </Layout.Section>
+    <div style={{ padding: "2.5rem 3rem", maxWidth: 720, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "1.75rem" }}>
+        <button
+          onClick={() => navigate("/dashboard/experiments")}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: "0.8125rem", padding: 0, marginBottom: "0.75rem" }}
+        >
+          ← Experiments
+        </button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: 0, letterSpacing: "-0.03em", color: "#111" }}>
+            New experiment
+          </h1>
+          <button
+            onClick={handleSubmit}
+            disabled={!name}
+            style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: name ? "pointer" : "not-allowed", opacity: name ? 1 : 0.4 }}
+          >
+            Create experiment
+          </button>
+        </div>
+      </div>
+
+      {actionData?.error && (
+        <div style={{ marginBottom: "1.25rem", padding: "0.875rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#991b1b" }}>
+          {actionData.error}
+        </div>
+      )}
+
+      {/* Details */}
+      <div style={card}>
+        <div style={cardTitle}>Details</div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={label}>Experiment name</label>
+          <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Homepage hero — summer sale" autoComplete="off" />
+        </div>
+        <div>
+          <label style={label}>Hypothesis</label>
+          <textarea
+            style={{ ...input, minHeight: 72, resize: "vertical", fontFamily: "inherit" }}
+            value={hypothesis}
+            onChange={(e) => setHypothesis(e.target.value)}
+            placeholder="e.g. Showing a discount badge will increase add-to-cart rate"
+          />
+        </div>
+      </div>
+
+      {/* Test type */}
+      <div style={card}>
+        <div style={cardTitle}>Test type</div>
+        <label style={label}>What are you testing?</label>
+        <select style={input} value={type} onChange={(e) => setType(e.target.value)}>
+          {EXPERIMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+      </div>
+
+      {/* Variants */}
+      <div style={card}>
+        <div style={cardTitle}>Variants</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.25rem" }}>
+          <div>
+            <label style={label}>Control name</label>
+            <input style={input} value={controlName} onChange={(e) => setControlName(e.target.value)} autoComplete="off" />
+          </div>
+          <div>
+            <label style={label}>Variant name</label>
+            <input style={input} value={variantName} onChange={(e) => setVariantName(e.target.value)} autoComplete="off" />
+          </div>
+        </div>
+
+        {type === "THEME" && (
+          <div>
+            <p style={{ ...helpText, marginBottom: "0.75rem", marginTop: 0 }}>
+              The control uses your live theme. Select the theme to test for {variantName || "Variant B"}.
+            </p>
+            <label style={label}>{variantName || "Variant B"} theme</label>
+            <select style={input} value={variantThemeId} onChange={(e) => setVariantThemeId(e.target.value)}>
+              {themeOptions.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
         )}
 
-        <Layout.Section>
-          <BlockStack gap="500">
-            {/* Basic info */}
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Details</Text>
-                <TextField
-                  label="Experiment name"
-                  value={name}
-                  onChange={setName}
-                  placeholder="e.g. Homepage hero — summer sale"
-                  autoComplete="off"
-                />
-                <TextField
-                  label="Hypothesis"
-                  value={hypothesis}
-                  onChange={setHypothesis}
-                  placeholder="e.g. Showing a discount badge will increase add-to-cart rate"
-                  multiline={3}
-                  autoComplete="off"
-                />
-              </BlockStack>
-            </Card>
+        {type === "URL_REDIRECT" && (
+          <div>
+            <label style={label}>{variantName || "Variant B"} destination URL</label>
+            <input style={input} value={variantRedirectUrl} onChange={(e) => setVariantRedirectUrl(e.target.value)} placeholder="https://yourstore.com/new-landing-page" autoComplete="off" />
+            <p style={helpText}>Visitors in this variant are redirected here. Use a relative path or absolute URL.</p>
+          </div>
+        )}
 
-            {/* Type */}
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Test type</Text>
-                <Select
-                  label="What are you testing?"
-                  options={EXPERIMENT_TYPES}
-                  value={type}
-                  onChange={setType}
-                />
-              </BlockStack>
-            </Card>
+        {type === "PRICE" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div>
+              <label style={label}>Adjustment type</label>
+              <select style={input} value={variantPriceAdjType} onChange={(e) => setVariantPriceAdjType(e.target.value)}>
+                <option value="percent">Percentage discount (%)</option>
+                <option value="fixed">Fixed price ($)</option>
+              </select>
+            </div>
+            <div>
+              <label style={label}>{variantPriceAdjType === "percent" ? "Discount (%)" : "Fixed price ($)"}</label>
+              <input style={input} type="number" value={variantPriceAdjValue} onChange={(e) => setVariantPriceAdjValue(e.target.value)} min={0} autoComplete="off" placeholder={variantPriceAdjType === "percent" ? "e.g. 10" : "e.g. 29.99"} />
+            </div>
+          </div>
+        )}
 
-            {/* Variants */}
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Variants</Text>
-                <InlineGrid columns={2} gap="400">
-                  <TextField
-                    label="Control name"
-                    value={controlName}
-                    onChange={setControlName}
-                    autoComplete="off"
-                  />
-                  <TextField
-                    label="Variant name"
-                    value={variantName}
-                    onChange={setVariantName}
-                    autoComplete="off"
-                  />
-                </InlineGrid>
+        {["SECTION", "PAGE", "TEMPLATE"].includes(type) && (
+          <div>
+            <label style={label}>{variantName || "Variant B"} Liquid code</label>
+            <textarea
+              style={{ ...input, minHeight: 180, resize: "vertical", fontFamily: "monospace", fontSize: "0.8125rem" }}
+              value={variantCustomLiquid}
+              onChange={(e) => setVariantCustomLiquid(e.target.value)}
+              placeholder={"{% if product.available %}\n  <p>In stock — ships today!</p>\n{% endif %}"}
+            />
+            <p style={helpText}>This Liquid is injected via the Variant Content app block in the Theme Editor.</p>
+          </div>
+        )}
+      </div>
 
-                {/* THEME */}
-                {type === "THEME" && (
-                  <BlockStack gap="300">
-                    <Text as="p" tone="subdued">
-                      The control uses your live theme. Select the theme to test for {variantName || "Variant B"}.
-                    </Text>
-                    <Select
-                      label={`${variantName || "Variant B"} theme`}
-                      options={themeOptions}
-                      value={variantThemeId}
-                      onChange={setVariantThemeId}
-                    />
-                  </BlockStack>
-                )}
-
-                {/* URL REDIRECT */}
-                {type === "URL_REDIRECT" && (
-                  <TextField
-                    label={`${variantName || "Variant B"} destination URL`}
-                    value={variantRedirectUrl}
-                    onChange={setVariantRedirectUrl}
-                    placeholder="https://yourstore.com/new-landing-page"
-                    autoComplete="off"
-                    helpText="Visitors in this variant are redirected here. Use a relative path or absolute URL."
-                  />
-                )}
-
-                {/* PRICE */}
-                {type === "PRICE" && (
-                  <InlineGrid columns={2} gap="400">
-                    <Select
-                      label="Adjustment type"
-                      options={[
-                        { label: "Percentage discount (%)", value: "percent" },
-                        { label: "Fixed price ($)", value: "fixed" },
-                      ]}
-                      value={variantPriceAdjType}
-                      onChange={setVariantPriceAdjType}
-                    />
-                    <TextField
-                      label={variantPriceAdjType === "percent" ? "Discount (%)" : "Fixed price ($)"}
-                      type="number"
-                      value={variantPriceAdjValue}
-                      onChange={setVariantPriceAdjValue}
-                      min={0}
-                      autoComplete="off"
-                      placeholder={variantPriceAdjType === "percent" ? "e.g. 10" : "e.g. 29.99"}
-                    />
-                  </InlineGrid>
-                )}
-
-                {/* SECTION / PAGE / TEMPLATE */}
-                {["SECTION", "PAGE", "TEMPLATE"].includes(type) && (
-                  <TextField
-                    label={`${variantName || "Variant B"} Liquid code`}
-                    value={variantCustomLiquid}
-                    onChange={setVariantCustomLiquid}
-                    multiline={8}
-                    autoComplete="off"
-                    monospaced
-                    placeholder={"{% if product.available %}\n  <p>In stock — ships today!</p>\n{% endif %}"}
-                    helpText="This Liquid is injected via the Variant Content app block in the Theme Editor."
-                  />
-                )}
-              </BlockStack>
-            </Card>
-
-            {/* Traffic */}
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">Traffic allocation</Text>
-                <Text as="p" tone="subdued">
-                  Percentage of your visitors included in this experiment. The rest see the default experience.
-                </Text>
-                <RangeSlider
-                  label={`${trafficAllocation}% of traffic`}
-                  value={trafficAllocation}
-                  min={5}
-                  max={100}
-                  step={5}
-                  onChange={(v) => setTrafficAllocation(v as number)}
-                  output
-                />
-                <Select
-                  label="Segment (optional)"
-                  helpText="Only show this experiment to visitors matching a segment. Leave blank to target all visitors."
-                  options={[
-                    { label: "— All visitors —", value: "" },
-                    ...segments.map((s) => ({ label: s.name, value: s.id })),
-                  ]}
-                  value={segmentId}
-                  onChange={setSegmentId}
-                />
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-    </Page>
+      {/* Traffic */}
+      <div style={card}>
+        <div style={cardTitle}>Traffic allocation</div>
+        <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
+          Percentage of your visitors included in this experiment. The rest see the default experience.
+        </p>
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+            <label style={{ ...label, marginBottom: 0 }}>Traffic included</label>
+            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111" }}>{trafficAllocation}%</span>
+          </div>
+          <input
+            type="range"
+            min={5} max={100} step={5}
+            value={trafficAllocation}
+            onChange={(e) => setTrafficAllocation(Number(e.target.value))}
+            style={{ width: "100%", accentColor: "#111" }}
+          />
+        </div>
+        <div>
+          <label style={label}>Segment <span style={{ color: "#aaa", fontWeight: 400 }}>(optional)</span></label>
+          <select style={input} value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
+            <option value="">— All visitors —</option>
+            {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <p style={helpText}>Only show this experiment to visitors matching a segment.</p>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,56 +1,32 @@
 import { type LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate, useSearchParams } from "react-router";
-import {
-  Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
-  Button,
-  EmptyState,
-  Filters,
-  IndexTable,
-  useIndexResourceState,
-  Badge,
-  Tabs,
-  Box,
-} from "@shopify/polaris";
-import { PlusIcon } from "@shopify/polaris-icons";
 import { useState, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { ExperimentStatusBadge } from "../components/ExperimentStatusBadge";
-import type { ExperimentStatus, ExperimentType } from "@prisma/client";
+import type { ExperimentStatus } from "@prisma/client";
 
 const STATUS_TABS = [
-  { id: "all", content: "All" },
-  { id: "RUNNING", content: "Running" },
-  { id: "DRAFT", content: "Draft" },
-  { id: "PAUSED", content: "Paused" },
-  { id: "COMPLETED", content: "Completed" },
-  { id: "ARCHIVED", content: "Archived" },
+  { id: "all", label: "All" },
+  { id: "RUNNING", label: "Running" },
+  { id: "DRAFT", label: "Draft" },
+  { id: "PAUSED", label: "Paused" },
+  { id: "COMPLETED", label: "Completed" },
+  { id: "ARCHIVED", label: "Archived" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await requireDashboardSession(request); // auth
+  const { session } = await requireDashboardSession(request);
   const url = new URL(request.url);
   const statusFilter = url.searchParams.get("status") ?? "all";
   const query = url.searchParams.get("query") ?? "";
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-  });
-
-  if (!shop) {
-    return { experiments: [], total: 0 };
-  }
+  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+  if (!shop) return { experiments: [], total: 0 };
 
   const where = {
     shopId: shop.id,
-    ...(statusFilter !== "all"
-      ? { status: statusFilter as ExperimentStatus }
-      : {}),
+    ...(statusFilter !== "all" ? { status: statusFilter as ExperimentStatus } : {}),
     ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
   };
 
@@ -70,143 +46,165 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { experiments, total };
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  THEME: "Theme",
+  SECTION: "Section",
+  PRICE: "Price",
+  URL_REDIRECT: "URL redirect",
+  TEMPLATE: "Template",
+};
+
 export default function ExperimentsIndex() {
   const { experiments, total } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get("query") ?? "");
 
-  const [queryValue, setQueryValue] = useState(
-    searchParams.get("query") ?? "",
-  );
-  const selectedTabIndex = STATUS_TABS.findIndex(
-    (t) => t.id === (searchParams.get("status") ?? "all"),
-  );
+  const activeTab = searchParams.get("status") ?? "all";
 
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(experiments);
+  const handleTabChange = useCallback((id: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (id === "all") params.delete("status"); else params.set("status", id);
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
 
-  const handleTabChange = useCallback(
-    (idx: number) => {
-      const params = new URLSearchParams(searchParams);
-      const id = STATUS_TABS[idx].id;
-      if (id === "all") {
-        params.delete("status");
-      } else {
-        params.set("status", id);
-      }
-      setSearchParams(params);
-    },
-    [searchParams, setSearchParams],
-  );
+  const handleSearch = useCallback((val: string) => {
+    setQuery(val);
+    const params = new URLSearchParams(searchParams);
+    if (val) params.set("query", val); else params.delete("query");
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
 
-  const handleQueryChange = useCallback(
-    (val: string) => {
-      setQueryValue(val);
-      const params = new URLSearchParams(searchParams);
-      if (val) {
-        params.set("query", val);
-      } else {
-        params.delete("query");
-      }
-      setSearchParams(params);
-    },
-    [searchParams, setSearchParams],
-  );
-
-  const rowMarkup = experiments.map((exp, idx) => (
-    <IndexTable.Row
-      id={exp.id}
-      key={exp.id}
-      selected={selectedResources.includes(exp.id)}
-      position={idx}
-      onClick={() => navigate(`/dashboard/experiments/${exp.id}`)}
-    >
-      <IndexTable.Cell>
-        <Text as="span" fontWeight="semibold">
-          {exp.name}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Badge>{exp.type.replace(/_/g, " ")}</Badge>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <ExperimentStatusBadge status={exp.status as ExperimentStatus} />
-      </IndexTable.Cell>
-      <IndexTable.Cell>{exp.variants.length}</IndexTable.Cell>
-      <IndexTable.Cell>{exp._count.allocations.toLocaleString()}</IndexTable.Cell>
-      <IndexTable.Cell>
-        {new Date(exp.updatedAt).toLocaleDateString()}
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
+  const th: React.CSSProperties = {
+    textAlign: "left",
+    fontSize: "0.7rem",
+    color: "#999",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    fontWeight: 500,
+    padding: "0.6rem 1rem",
+    borderBottom: "1px solid #e9e9e9",
+    whiteSpace: "nowrap",
+  };
+  const td: React.CSSProperties = {
+    padding: "0.875rem 1rem",
+    fontSize: "0.8125rem",
+    color: "#111",
+    borderBottom: "1px solid #f5f5f5",
+    verticalAlign: "middle",
+  };
 
   return (
-    <Page
-      title="Experiments"
-      primaryAction={{
-        content: "New experiment",
-        icon: PlusIcon,
-        onAction: () => navigate("/dashboard/experiments/new"),
-      }}
-    >
-      <Layout>
-        <Layout.Section>
-          <Card padding="0">
-            <Tabs
-              tabs={STATUS_TABS}
-              selected={selectedTabIndex < 0 ? 0 : selectedTabIndex}
-              onSelect={handleTabChange}
-            >
-              <Box paddingInline="400" paddingBlock="200">
-                <Filters
-                  queryValue={queryValue}
-                  queryPlaceholder="Search experiments"
-                  filters={[]}
-                  onQueryChange={handleQueryChange}
-                  onQueryClear={() => handleQueryChange("")}
-                  onClearAll={() => handleQueryChange("")}
-                />
-              </Box>
+    <div style={{ padding: "2.5rem 3rem", maxWidth: 960, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: 0, letterSpacing: "-0.03em", color: "#111" }}>
+          Experiments
+        </h1>
+        <button
+          onClick={() => navigate("/dashboard/experiments/new")}
+          style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
+        >
+          + New experiment
+        </button>
+      </div>
 
-              {experiments.length === 0 ? (
-                <Box padding="400">
-                  <EmptyState
-                    heading="No experiments found"
-                    action={{
-                      content: "Create experiment",
-                      onAction: () => navigate("/dashboard/experiments/new"),
-                    }}
-                    image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                  >
-                    <Text as="p" tone="subdued">
-                      Try adjusting your filters or create a new experiment.
-                    </Text>
-                  </EmptyState>
-                </Box>
-              ) : (
-                <IndexTable
-                  resourceName={{ singular: "experiment", plural: "experiments" }}
-                  itemCount={total}
-                  selectedItemsCount={
-                    allResourcesSelected ? "All" : selectedResources.length
-                  }
-                  onSelectionChange={handleSelectionChange}
-                  headings={[
-                    { title: "Name" },
-                    { title: "Type" },
-                    { title: "Status" },
-                    { title: "Variants" },
-                    { title: "Visitors" },
-                    { title: "Updated" },
-                  ]}
+      {/* Tabs + Search */}
+      <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #e9e9e9", padding: "0 1rem" }}>
+          <div style={{ display: "flex" }}>
+            {STATUS_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handleTabChange(t.id)}
+                style={{
+                  padding: "0.75rem 0.875rem",
+                  background: "none",
+                  border: "none",
+                  borderBottom: activeTab === t.id ? "2px solid #111" : "2px solid transparent",
+                  cursor: "pointer",
+                  fontSize: "0.8125rem",
+                  fontWeight: activeTab === t.id ? 500 : 400,
+                  color: activeTab === t.id ? "#111" : "#999",
+                  marginBottom: -1,
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <input
+            type="search"
+            placeholder="Search experiments…"
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            style={{
+              padding: "0.35rem 0.75rem",
+              border: "1px solid #e9e9e9",
+              borderRadius: 6,
+              fontSize: "0.8125rem",
+              color: "#111",
+              outline: "none",
+              width: 220,
+            }}
+          />
+        </div>
+
+        {experiments.length === 0 ? (
+          <div style={{ padding: "3rem", textAlign: "center" }}>
+            <div style={{ fontSize: "0.875rem", color: "#999", marginBottom: "1rem" }}>No experiments found</div>
+            <button
+              onClick={() => navigate("/dashboard/experiments/new")}
+              style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
+            >
+              Create experiment
+            </button>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#fafafa" }}>
+                <th style={th}>Name</th>
+                <th style={th}>Type</th>
+                <th style={th}>Status</th>
+                <th style={th}>Variants</th>
+                <th style={{ ...th, textAlign: "right" }}>Visitors</th>
+                <th style={{ ...th, textAlign: "right" }}>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiments.map((exp) => (
+                <tr
+                  key={exp.id}
+                  onClick={() => navigate(`/dashboard/experiments/${exp.id}`)}
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "")}
                 >
-                  {rowMarkup}
-                </IndexTable>
-              )}
-            </Tabs>
-          </Card>
-        </Layout.Section>
-      </Layout>
-    </Page>
+                  <td style={{ ...td, fontWeight: 500 }}>{exp.name}</td>
+                  <td style={td}>
+                    <span style={{ fontSize: "0.75rem", color: "#777", background: "#f5f5f5", borderRadius: 4, padding: "0.15rem 0.5rem" }}>
+                      {TYPE_LABELS[exp.type] ?? exp.type}
+                    </span>
+                  </td>
+                  <td style={td}>
+                    <ExperimentStatusBadge status={exp.status as ExperimentStatus} />
+                  </td>
+                  <td style={{ ...td, color: "#777" }}>{exp.variants.length}</td>
+                  <td style={{ ...td, textAlign: "right", color: "#777" }}>{exp._count.allocations.toLocaleString()}</td>
+                  <td style={{ ...td, textAlign: "right", color: "#aaa" }}>{new Date(exp.updatedAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {total > 50 && (
+          <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #f5f5f5", fontSize: "0.75rem", color: "#aaa" }}>
+            Showing 50 of {total} experiments
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
