@@ -188,11 +188,16 @@ async function handleOrderCreate(
     attrs[name] = value;
   }
 
+  console.log(`[order] note_attributes raw:`, JSON.stringify(payload.note_attributes ?? []));
+  console.log(`[order] attrs:`, JSON.stringify(attrs));
+
   const visitorToken = attrs._spt_vid ?? null;
   let assignments: Record<string, string> = {};
   try {
     assignments = attrs._spt_asgn ? JSON.parse(attrs._spt_asgn) : {};
   } catch {}
+
+  console.log(`[order] visitorToken=${visitorToken} assignments=${JSON.stringify(assignments)}`);
 
   // Resolve visitor
   const visitor = visitorToken
