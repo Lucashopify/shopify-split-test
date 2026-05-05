@@ -1,6 +1,8 @@
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import { createHmac } from "crypto";
 import { prisma } from "../db.server";
+import { unauthenticated } from "../shopify.server";
+import { ensureMetafieldDefinition, syncConfigToMetafield } from "../lib/experiments/config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -93,7 +95,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
   });
 
-  console.log("[auth/callback] Shop saved:", dbShop.id, "→ redirecting to dashboard");
+  console.log("[auth/callback] Shop saved:", dbShop.id);
+
+  // Set up metafield definition and initial config (best-effort)
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    await ensureMetafieldDefinition(admin);
+    await syncConfigToMetafield(admin, dbShop.id);
+    console.log("[auth/callback] Metafield definition ensured, config synced");
+  } catch (err) {
+    console.error("[auth/callback] Post-install setup failed (non-fatal):", err);
+  }
 
   throw redirect(`/dashboard?shop=${shop}`);
 };
