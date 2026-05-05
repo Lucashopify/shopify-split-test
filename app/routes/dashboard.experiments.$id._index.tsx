@@ -86,8 +86,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (intent === "force_rollup") {
-    const { rollupQueue } = await import("../../jobs/src/rollup.js");
-    await rollupQueue.add("manual-rollup", { shopId: shop.id, experimentId: exp.id });
+    const { Queue } = await import("bullmq");
+    const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+    const q = new Queue("analytics-rollup", { connection: { url: REDIS_URL } });
+    await q.add("manual-rollup", { shopId: shop.id, experimentId: exp.id });
+    await q.close();
     return { ok: true, message: "Rollup queued" };
   }
 
