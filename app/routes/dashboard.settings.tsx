@@ -25,7 +25,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }`);
     const defData = await defResp.json();
-    console.log("[settings loader] metafieldDefinitions response:", JSON.stringify(defData));
     metafieldDefinitionExists = (defData.data?.metafieldDefinitions?.nodes?.length ?? 0) > 0;
   } catch (err: unknown) {
     if (isForbidden(err)) {
@@ -151,7 +150,7 @@ export default function SettingsPage() {
             Re-authorization required
           </div>
           <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
-            Shopify is returning 403 Forbidden on all metafield API calls. This means the installed access token has been invalidated or revoked — likely because the app's scopes were changed in the Partner Dashboard after the initial install. Re-authorizing issues a fresh token and fixes the issue.
+            Shopify is rejecting the stored access token. This usually means the token is a legacy non-expiring type that Shopify no longer accepts. To fix: go to your <strong>Shopify Partner Dashboard → App → Configuration</strong> and enable <strong>Token expiration</strong>, then click Re-authorize below.
           </p>
           <fetcher.Form method="post">
             <input type="hidden" name="intent" value="reauth" />
