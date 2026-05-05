@@ -63,6 +63,30 @@ async function doRefreshToken(shop: string, refreshToken: string): Promise<Token
   return resp.json() as Promise<TokenResponse>;
 }
 
+async function registerOrderWebhooks(shop: string, token: string, shopId: string) {
+  const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
+  const webhookUrl = `${appUrl}/webhooks`;
+  const restBase = `https://${shop}/admin/api/2025-01/webhooks.json`;
+  const headers = { "Content-Type": "application/json", "X-Shopify-Access-Token": token };
+  const topics = ["orders/create", "orders/paid", "orders/cancelled", "orders/updated"];
+
+  for (const topic of topics) {
+    const r = await fetch(restBase, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ webhook: { topic, address: webhookUrl, format: "json" } }),
+    });
+    if (!r.ok && r.status !== 422) {
+      console.warn(`[webhooks] Failed to register ${topic}:`, r.status, await r.text());
+      return; // don't mark as registered if any failed
+    }
+    console.log(`[webhooks] Registered ${topic} (or already exists)`);
+  }
+
+  await prisma.shop.update({ where: { id: shopId }, data: { webhooksRegisteredAt: new Date() } });
+  console.log("[webhooks] All order webhooks registered for", shop);
+}
+
 function buildAdminClient(shop: string, token: string) {
   const gqlUrl = `https://${shop}/admin/api/2025-01/graphql.json`;
   return {
@@ -142,6 +166,13 @@ export async function requireDashboardSession(request: Request) {
   }
 
   const admin = buildAdminClient(shop, token);
+
+  // Register order webhooks once per shop (fire-and-forget, non-blocking)
+  if (!dbShop.webhooksRegisteredAt) {
+    registerOrderWebhooks(shop, token, dbShop.id).catch((err) =>
+      console.error("[webhooks] Registration failed:", err),
+    );
+  }
 
   cookieSession.set("shop", shop);
   const setCookie = await sessionStorage.commitSession(cookieSession);

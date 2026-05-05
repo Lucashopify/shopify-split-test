@@ -45,6 +45,7 @@ model Shop {
   timezone          String?
   installedAt       DateTime  @default(now())
   uninstalledAt     DateTime?
+  webhooksRegisteredAt DateTime?
 
   experiments       Experiment[]
   brandTokens       BrandTokens?
