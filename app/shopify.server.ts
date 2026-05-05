@@ -6,7 +6,7 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import { prisma } from "./db.server";
-import { syncConfigToMetafield, syncWebPixel, ensureMetafieldDefinition } from "./lib/experiments/config.server";
+import { syncConfigToMetafield, ensureMetafieldDefinition } from "./lib/experiments/config.server";
 import { getShopMetadata } from "./lib/shopify/admin.server";
 
 const shopify = shopifyApp({
@@ -61,12 +61,6 @@ const shopify = shopifyApp({
         await ensureMetafieldDefinition(admin);
       } catch (err) {
         console.error("[afterAuth] Failed to ensure metafield definition:", err);
-      }
-
-      try {
-        await syncWebPixel(admin);
-      } catch (err) {
-        console.error("[afterAuth] Failed to sync web pixel:", err);
       }
 
       try {

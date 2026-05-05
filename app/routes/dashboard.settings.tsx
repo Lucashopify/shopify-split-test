@@ -9,41 +9,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
 
-  // Check pixel + metafield definition status in parallel
-  let pixelRegistered = false;
   let metafieldDefinitionExists = false;
   let metafieldHasValue = false;
   let configExperimentsCount = 0;
 
   try {
-    const [pixelResp, defResp] = await Promise.all([
-      admin.graphql(`{ webPixels(first: 1) { nodes { id } } }`),
-      admin.graphql(`{
-        metafieldDefinitions(first: 1, ownerType: SHOP, namespace: "split_test_app", key: "config") {
-          nodes { id access { storefront } }
-        }
-      }`),
-    ]);
-    const [pixelData, defData] = await Promise.all([pixelResp.json(), defResp.json()]);
-    pixelRegistered = (pixelData.data?.webPixels?.nodes?.length ?? 0) > 0;
-    const defNode = defData.data?.metafieldDefinitions?.nodes?.[0];
-    metafieldDefinitionExists = !!defNode;
-
-    // Check if the metafield actually has a value
-    if (metafieldDefinitionExists) {
-      const valResp = await admin.graphql(`{ shop { metafield(namespace: "split_test_app", key: "config") { value } } }`);
-      const valData = await valResp.json();
-      const raw = valData.data?.shop?.metafield?.value;
-      if (raw) {
-        metafieldHasValue = true;
-        try {
-          const parsed = JSON.parse(raw);
-          configExperimentsCount = parsed?.experiments?.length ?? 0;
-        } catch {}
+    const defResp = await admin.graphql(`{
+      metafieldDefinitions(first: 1, ownerType: SHOP, namespace: "split_test_app", key: "config") {
+        nodes { id }
       }
+    }`);
+    const defData = await defResp.json();
+    metafieldDefinitionExists = (defData.data?.metafieldDefinitions?.nodes?.length ?? 0) > 0;
+  } catch (err: unknown) {
+    const gqlErrs = (err as Record<string, unknown>)?.graphQLErrors;
+    console.error("[settings loader] metafield def check:", gqlErrs ? JSON.stringify(gqlErrs) : String(err));
+  }
+
+  try {
+    const valResp = await admin.graphql(`{ shop { metafield(namespace: "split_test_app", key: "config") { value } } }`);
+    const valData = await valResp.json();
+    const raw = valData.data?.shop?.metafield?.value;
+    if (raw) {
+      metafieldHasValue = true;
+      try { configExperimentsCount = (JSON.parse(raw) as { experiments?: unknown[] })?.experiments?.length ?? 0; } catch {}
     }
-  } catch (err) {
-    console.error("[settings loader]", err);
+  } catch (err: unknown) {
+    const gqlErrs = (err as Record<string, unknown>)?.graphQLErrors;
+    console.error("[settings loader] metafield value check:", gqlErrs ? JSON.stringify(gqlErrs) : String(err));
   }
 
   return Response.json({
@@ -52,7 +45,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     currency: shop?.currency ?? "—",
     timezone: shop?.timezone ?? "—",
     installedAt: shop?.installedAt?.toISOString() ?? null,
-    pixelRegistered,
     metafieldDefinitionExists,
     metafieldHasValue,
     configExperimentsCount,
@@ -105,7 +97,7 @@ function StatusDot({ ok, label, warn }: { ok: boolean; label?: string; warn?: bo
 export default function SettingsPage() {
   const {
     shopDomain, myshopifyDomain, currency, timezone, installedAt,
-    pixelRegistered, metafieldDefinitionExists, metafieldHasValue,
+    metafieldDefinitionExists, metafieldHasValue,
     configExperimentsCount, appUrl,
   } = useLoaderData<typeof loader>();
 
@@ -132,10 +124,6 @@ export default function SettingsPage() {
       <section style={{ marginBottom: "2.5rem" }}>
         <h2 style={{ fontSize: "0.75rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.5rem" }}>Integrations</h2>
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "0 1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Web Pixel</div>
-            <StatusDot ok={pixelRegistered} />
-          </div>
           <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
             <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Theme App Extension</div>
             <div style={{ fontSize: "0.8125rem", color: "#777" }}>Enable "Split Test" in Theme Editor → App embeds → Save</div>
