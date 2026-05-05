@@ -203,9 +203,15 @@ export default function ExperimentDetail() {
               {experiment.name}
             </h1>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: STATUS_COLORS[displayStatus] ?? "#999" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: STATUS_COLORS[displayStatus] ?? "#999", display: "inline-block" }} />
+              <span style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: STATUS_COLORS[displayStatus] ?? "#999",
+                display: "inline-block",
+                ...(displayStatus === "RUNNING" ? { animation: "spt-pulse 1.8s ease-in-out infinite" } : {}),
+              }} />
               {displayStatus.toLowerCase()}
             </span>
+            <style>{`@keyframes spt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
           </div>
 
           {/* Action buttons */}
@@ -458,6 +464,64 @@ export default function ExperimentDetail() {
   );
 }
 
+function ConclusionBanner({
+  pValue,
+  srmFlagged,
+  rows,
+}: {
+  pValue: number | null;
+  srmFlagged: boolean;
+  rows: Array<{ v: VariantStub; sessions: number; orders: number; cvr: number | null; liftPct: number | null }>;
+}) {
+  if (srmFlagged) return null; // SRM banner already shown above
+
+  const totalSessions = rows.reduce((s, r) => s + r.sessions, 0);
+  const significant = pValue != null && pValue < 0.05;
+  const hasEnoughData = totalSessions >= 100;
+  const control = rows.find((r) => r.v.isControl);
+  const winner = significant
+    ? rows.filter((r) => !r.v.isControl).sort((a, b) => (b.liftPct ?? 0) - (a.liftPct ?? 0))[0]
+    : null;
+
+  if (!hasEnoughData) {
+    return (
+      <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#f9fafb", border: "1px solid #e9e9e9", borderRadius: 8 }}>
+        <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111", marginBottom: "0.3rem" }}>Collecting data</div>
+        <div style={{ fontSize: "0.75rem", color: "#888", lineHeight: 1.6 }}>
+          Need at least 100 sessions per variant before results are meaningful. Keep the experiment running.
+        </div>
+      </div>
+    );
+  }
+
+  if (significant && winner) {
+    const lift = winner.liftPct != null ? `${winner.liftPct > 0 ? "+" : ""}${(winner.liftPct * 100).toFixed(1)}%` : "";
+    return (
+      <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8 }}>
+        <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#166534", marginBottom: "0.3rem" }}>
+          ✓ Significant result — ready to conclude (p = {pValue!.toFixed(4)})
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "#15803d", lineHeight: 1.6 }}>
+          <strong>{winner.v.name}</strong> is the winner with {lift} lift over {control?.v.name ?? "control"}.
+          {" "}You can now ship this variant or end the test.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 }}>
+      <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#92400e", marginBottom: "0.3rem" }}>
+        Not yet significant (p = {pValue != null ? pValue.toFixed(4) : "—"})
+      </div>
+      <div style={{ fontSize: "0.75rem", color: "#78350f", lineHeight: 1.6 }}>
+        Results are not conclusive yet. Keep running until p &lt; 0.05 (95% confidence) before making a decision.
+        Stopping early risks acting on random variation.
+      </div>
+    </div>
+  );
+}
+
 function FunnelBar({ funnel }: { funnel: { visitors: number; sessions: number; atc: number; checkout: number; orders: number; revenue: number } }) {
   const { visitors, sessions, atc, checkout, orders, revenue } = funnel;
   const rate = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
@@ -612,16 +676,10 @@ function ResultsTable({
     <div>
       {srmFlagged && (
         <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#991b1b" }}>
-          ⚠ Sample Ratio Mismatch detected — visitor allocation is significantly off from target weights. Results may be unreliable.
+          ⚠ <strong>Sample Ratio Mismatch</strong> — visitor allocation is significantly off from target weights. Results cannot be trusted until this is resolved.
         </div>
       )}
-      {pValue != null && (
-        <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: pValue < 0.05 ? "#f0fdf4" : "#f9fafb", border: `1px solid ${pValue < 0.05 ? "#bbf7d0" : "#e9e9e9"}`, borderRadius: 6, fontSize: "0.8125rem", color: pValue < 0.05 ? "#166534" : "#666" }}>
-          {pValue < 0.05
-            ? `✓ Statistically significant (p = ${pValue.toFixed(4)})`
-            : `p-value: ${pValue.toFixed(4)} — not yet significant (need p < 0.05)`}
-        </div>
-      )}
+      <ConclusionBanner pValue={pValue} srmFlagged={srmFlagged} rows={rows} />
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
           <thead>
