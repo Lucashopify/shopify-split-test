@@ -23,6 +23,10 @@ api_version = "2025-01"
   topics = ["orders/create", "orders/paid", "orders/cancelled", "orders/updated"]
   uri = "/webhooks"
 
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "/webhooks"
+
 [access_scopes]
 scopes = "read_products,write_products,read_themes,write_themes,read_orders,write_orders,read_customers,read_content,write_content,read_price_rules,write_price_rules,read_script_tags,write_script_tags"
 
