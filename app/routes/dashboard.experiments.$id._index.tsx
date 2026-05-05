@@ -633,6 +633,7 @@ function ResultsTable({
               <th style={{ ...thStyle, textAlign: "right" }}>ATC Rate</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Checkout Rate</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Revenue</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Rev / visitor</th>
               <th style={{ ...thStyle, textAlign: "right" }}>AOV</th>
               <th style={{ ...thStyle, textAlign: "right" }}>Lift</th>
             </tr>
@@ -652,6 +653,7 @@ function ResultsTable({
                 <td style={tdNumStyle}>{fmt(atcRate)}</td>
                 <td style={tdNumStyle}>{fmt(checkoutRate)}</td>
                 <td style={tdNumStyle}>{fmtMoney(revenue)}</td>
+                <td style={tdNumStyle}>{sessions > 0 && revenue > 0 ? `$${(revenue / sessions).toFixed(2)}` : "—"}</td>
                 <td style={tdNumStyle}>{fmtMoney(aov)}</td>
                 <td style={{ ...tdNumStyle, color: liftPct == null ? "#999" : liftPct > 0 ? "#16a34a" : liftPct < 0 ? "#dc2626" : "#111" }}>
                   {v.isControl ? "—" : liftPct == null ? "—" : `${liftPct > 0 ? "+" : ""}${(liftPct * 100).toFixed(1)}%`}
