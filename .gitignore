@@ -1,0 +1,21 @@
+node_modules
+.DS_Store
+build
+.cache
+.env
+.shopify
+*.local
+
+# Vite
+dist
+dist-ssr
+
+# Prisma
+prisma/migrations/**/migration.sql.bak
+
+# Edge worker
+edge/dist
+edge/.wrangler
+
+# Jobs
+jobs/dist

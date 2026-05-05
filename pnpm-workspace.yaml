@@ -1,0 +1,6 @@
+packages:
+  - "."
+  - "jobs"
+  - "edge"
+allowScripts: true
+confirmModulesPurge: false

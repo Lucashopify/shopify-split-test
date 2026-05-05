@@ -1,0 +1,11 @@
+name = "Split Test Pixel"
+handle = "split-test-pixel"
+uid = "7ce804cb-b7c0-9e8c-5d56-6cb2038e624e30b2ef43"
+type = "web_pixel_extension"
+runtime_context = "strict"
+
+[customer_privacy]
+  analytics = true
+  marketing = false
+  preferences = false
+  sale_of_data = "disabled"

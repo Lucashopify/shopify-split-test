@@ -1,0 +1,60 @@
+name = "split-test-app"
+client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
+application_url = "REPLACE_WITH_APP_URL"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "REPLACE_WITH_DEV_STORE.myshopify.com"
+include_config_on_deploy = true
+
+[access_scopes]
+scopes = "read_products,write_products,read_themes,write_themes,read_orders,write_orders,read_customers,read_analytics,read_content,write_content,read_price_rules,write_price_rules,read_script_tags,write_script_tags,read_metafields,write_metafields"
+
+[auth]
+redirect_urls = [
+  "REPLACE_WITH_APP_URL/auth/callback",
+  "REPLACE_WITH_APP_URL/auth/shopify/callback",
+  "REPLACE_WITH_APP_URL/api/auth/callback",
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/shopify/callback",
+]
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["shop/update"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create", "orders/paid", "orders/cancelled", "orders/updated"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["themes/create", "themes/update", "themes/delete"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["products/update"]
+  uri = "/webhooks"
+
+  # GDPR mandatory webhooks
+  [[webhooks.subscriptions]]
+  topics = ["customers/data_request"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["customers/redact"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["shop/redact"]
+  uri = "/webhooks"
+
+[pos]
+embedded = false

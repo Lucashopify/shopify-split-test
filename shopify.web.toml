@@ -1,0 +1,6 @@
+type = "frontend"
+port = 3000
+
+[commands]
+dev = "npx react-router dev"
+build = "npx react-router build"

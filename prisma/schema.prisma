@@ -1,0 +1,428 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Shopify session storage (required by @shopify/shopify-app-session-storage-prisma)
+// ---------------------------------------------------------------------------
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+// ---------------------------------------------------------------------------
+// Shop
+// ---------------------------------------------------------------------------
+model Shop {
+  id                String    @id @default(cuid())
+  shopDomain        String    @unique
+  myshopifyDomain   String?
+  accessToken       String
+  scopes            String
+  primaryMarket     String?
+  currency          String?
+  timezone          String?
+  installedAt       DateTime  @default(now())
+  uninstalledAt     DateTime?
+
+  experiments       Experiment[]
+  brandTokens       BrandTokens?
+  billingPlan       BillingPlan?
+  segments          Segment[]
+  liftTemplates     LiftAssistTemplate[]
+  auditLogs         AuditLog[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Experiment
+// ---------------------------------------------------------------------------
+enum ExperimentStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ExperimentType {
+  PAGE
+  TEMPLATE
+  THEME
+  PRICE
+  URL_REDIRECT
+  SECTION
+}
+
+model Experiment {
+  id                    String           @id @default(cuid())
+  shopId                String
+  shop                  Shop             @relation(fields: [shopId], references: [id])
+
+  name                  String
+  hypothesis            String?
+  type                  ExperimentType
+  status                ExperimentStatus @default(DRAFT)
+
+  // Targeting
+  targetTemplate        String?          // "product" | "collection" | "page" | etc.
+  targetUrl             String?          // URL or pattern for URL-redirect tests
+  targetPageHandle      String?
+
+  // Traffic
+  trafficAllocation     Float            @default(100)  // % of visitors exposed
+  mutualExclusionGroup  String?
+
+  // Schedule
+  startAt               DateTime?
+  endAt                 DateTime?
+
+  // Auto-pause triggers
+  autoStopSrm           Boolean          @default(true)
+  autoStopRevDrop       Boolean          @default(true)
+
+  // Stats config
+  primaryMetric         String           @default("conversion_rate")
+  minimumSampleSize     Int?
+
+  // Targeting segment
+  segmentId             String?
+  segment               Segment?         @relation(fields: [segmentId], references: [id])
+
+  variants              Variant[]
+  allocations           Allocation[]
+  results               ExperimentResult[]
+  events                Event[]
+  orders                Order[]
+  auditLogs             AuditLog[]
+
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@index([shopId, status])
+  @@index([shopId, type])
+}
+
+// ---------------------------------------------------------------------------
+// Variant
+// ---------------------------------------------------------------------------
+model Variant {
+  id              String      @id @default(cuid())
+  experimentId    String
+  experiment      Experiment  @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  name            String
+  isControl       Boolean     @default(false)
+  trafficWeight   Float       @default(50)   // % of experiment traffic (weights must sum to 100)
+
+  // Theme test
+  themeId         String?     // Shopify theme GID
+  themeRole       String?     // "main" | "unpublished"
+
+  // URL redirect test
+  redirectUrl     String?
+
+  // Price test
+  priceAdjType    String?     // "fixed" | "percent"
+  priceAdjValue   Float?
+
+  // Section / content test
+  sectionDiff     Json?       // JSON patch of section/block/settings changes
+  customLiquid    String?
+  customJs        String?
+
+  allocations     Allocation[]
+  results         ExperimentResult[]
+  events          Event[]
+  orders          Order[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([experimentId])
+}
+
+// ---------------------------------------------------------------------------
+// Visitor
+// ---------------------------------------------------------------------------
+model Visitor {
+  id                  String       @id @default(cuid())
+  shopId              String
+  visitorToken        String       // first-party cookie value (hashed for storage)
+
+  firstSeenAt         DateTime     @default(now())
+  lastSeenAt          DateTime     @default(now())
+
+  // Segmentation attributes (written on first event, updated on subsequent)
+  device              String?      // "mobile" | "tablet" | "desktop"
+  country             String?
+  region              String?
+  city                String?
+  utmSource           String?
+  utmMedium           String?
+  utmCampaign         String?
+  referrer            String?
+  customerType        String?      // "new" | "returning"
+  shopifyCustomerId   String?
+
+  allocations         Allocation[]
+  events              Event[]
+  orders              Order[]
+
+  @@unique([shopId, visitorToken])
+  @@index([shopId])
+  @@index([shopId, lastSeenAt])
+}
+
+// ---------------------------------------------------------------------------
+// Allocation  (visitor → variant assignment, one row per experiment per visitor)
+// ---------------------------------------------------------------------------
+model Allocation {
+  id            String     @id @default(cuid())
+  experimentId  String
+  experiment    Experiment @relation(fields: [experimentId], references: [id])
+  variantId     String
+  variant       Variant    @relation(fields: [variantId], references: [id])
+  visitorId     String
+  visitor       Visitor    @relation(fields: [visitorId], references: [id])
+  assignedAt    DateTime   @default(now())
+
+  @@unique([experimentId, visitorId])
+  @@index([experimentId, variantId])
+  @@index([visitorId])
+}
+
+// ---------------------------------------------------------------------------
+// Event
+// ---------------------------------------------------------------------------
+enum EventType {
+  PAGE_VIEW
+  ADD_TO_CART
+  INITIATE_CHECKOUT
+  PURCHASE
+  CLICK
+  CUSTOM
+}
+
+model Event {
+  id            String     @id @default(cuid())
+  shopId        String
+  experimentId  String
+  experiment    Experiment @relation(fields: [experimentId], references: [id])
+  variantId     String
+  variant       Variant    @relation(fields: [variantId], references: [id])
+  visitorId     String
+  visitor       Visitor    @relation(fields: [visitorId], references: [id])
+  type          EventType
+  url           String?
+  elementId     String?
+  metadata      Json?
+  occurredAt    DateTime   @default(now())
+
+  @@index([experimentId, variantId, type])
+  @@index([shopId, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// Order  (1:1 matched by Shopify order ID — never client-side estimated)
+// ---------------------------------------------------------------------------
+model Order {
+  id                  String      @id @default(cuid())
+  shopId              String
+  shopifyOrderId      String      // numeric ID from webhook
+  shopifyOrderGid     String      // gid://shopify/Order/...
+
+  experimentId        String?
+  experiment          Experiment? @relation(fields: [experimentId], references: [id])
+  variantId           String?
+  variant             Variant?    @relation(fields: [variantId], references: [id])
+  visitorId           String?
+  visitor             Visitor?    @relation(fields: [visitorId], references: [id])
+
+  revenue             Float
+  revenueAdjusted     Float?      // set after refunds / cancellations
+  currency            String
+
+  // "one_time" | "subscription" | "gift_card" | "draft" | "b2b"
+  orderType           String      @default("one_time")
+  // "paid" | "cancelled" | "refunded" | "partially_refunded"
+  status              String      @default("paid")
+
+  itemCount           Int
+  processedAt         DateTime
+  reconciledAt        DateTime?
+
+  createdAt           DateTime    @default(now())
+
+  @@unique([shopId, shopifyOrderId])
+  @@index([experimentId, variantId])
+  @@index([shopId, processedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ExperimentResult  (hourly rollup — written by BullMQ rollup job)
+// ---------------------------------------------------------------------------
+model ExperimentResult {
+  id                    String     @id @default(cuid())
+  experimentId          String
+  experiment            Experiment @relation(fields: [experimentId], references: [id])
+  variantId             String
+  variant               Variant    @relation(fields: [variantId], references: [id])
+
+  windowStart           DateTime
+  windowEnd             DateTime
+
+  // Raw counts
+  sessions              Int        @default(0)
+  uniqueVisitors        Int        @default(0)
+  addToCartCount        Int        @default(0)
+  initiateCheckoutCount Int        @default(0)
+  conversionCount       Int        @default(0)
+  revenue               Float      @default(0)
+  revenueAdjusted       Float      @default(0)
+  itemsPerOrder         Float      @default(0)
+  bounceCount           Int        @default(0)
+  clickCount            Int        @default(0)
+
+  // Computed rates (set by rollup job)
+  cvr                   Float?     // conversion rate
+  aov                   Float?     // average order value
+  rpv                   Float?     // revenue per visitor
+  atcRate               Float?
+  bounceRate            Float?
+
+  // Statistical output (set by stats engine)
+  pValue                Float?
+  bayesianProbBest      Float?
+  liftPct               Float?
+  liftCiLow             Float?
+  liftCiHigh            Float?
+  srmPValue             Float?
+  srmFlagged            Boolean    @default(false)
+
+  createdAt             DateTime   @default(now())
+
+  @@unique([experimentId, variantId, windowStart])
+  @@index([experimentId, windowStart])
+}
+
+// ---------------------------------------------------------------------------
+// Segment  (targeting / analysis filter — boolean rule tree)
+// ---------------------------------------------------------------------------
+model Segment {
+  id          String       @id @default(cuid())
+  shopId      String
+  shop        Shop         @relation(fields: [shopId], references: [id])
+  name        String
+  // { op: "AND" | "OR" | "NOT", children: [...rules] }
+  rules       Json
+  experiments Experiment[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([shopId])
+}
+
+// ---------------------------------------------------------------------------
+// BrandTokens  (Lift Assist — Phase 5)
+// ---------------------------------------------------------------------------
+model BrandTokens {
+  id              String   @id @default(cuid())
+  shopId          String   @unique
+  shop            Shop     @relation(fields: [shopId], references: [id])
+  primaryColor    String?
+  secondaryColor  String?
+  fontStack       String?
+  baseFontSize    String?
+  borderRadius    String?
+  buttonStyle     Json?
+  spacingScale    Json?
+  rawTokens       Json?
+  scannedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// LiftAssistTemplate  (pre-built, brand-styled experiments — Phase 5)
+// ---------------------------------------------------------------------------
+model LiftAssistTemplate {
+  id           String   @id @default(cuid())
+  shopId       String?
+  shop         Shop?    @relation(fields: [shopId], references: [id])
+  slug         String
+  name         String
+  description  String?
+  // "conversion" | "aov" | "engagement" | "trust"
+  category     String
+  templateJson Json
+  isGlobal     Boolean  @default(false)
+  usageCount   Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([shopId])
+  @@index([isGlobal])
+}
+
+// ---------------------------------------------------------------------------
+// BillingPlan
+// ---------------------------------------------------------------------------
+model BillingPlan {
+  id                  String   @id @default(cuid())
+  shopId              String   @unique
+  shop                Shop     @relation(fields: [shopId], references: [id])
+  shopifyChargeId     String?
+  // "free_trial" | "starter" | "growth" | "scale" | "enterprise"
+  planName            String   @default("free_trial")
+  monthlyVisitorCap   Int      @default(50000)
+  trialEndsAt         DateTime?
+  currentPeriodEnd    DateTime?
+  // "active" | "frozen" | "cancelled" | "pending"
+  status              String   @default("active")
+  liftAssistEnabled   Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// AuditLog
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id           String      @id @default(cuid())
+  shopId       String
+  shop         Shop        @relation(fields: [shopId], references: [id])
+  experimentId String?
+  experiment   Experiment? @relation(fields: [experimentId], references: [id])
+  // "merchant" | "system" | "worker"
+  actor        String
+  // e.g. "experiment.started", "variant.updated", "test.auto_paused"
+  action       String
+  before       Json?
+  after        Json?
+  ip           String?
+  createdAt    DateTime    @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([experimentId])
+}

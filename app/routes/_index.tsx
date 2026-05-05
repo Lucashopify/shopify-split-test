@@ -1,0 +1,41 @@
+import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { useLoaderData, Form } from "react-router";
+import { login } from "../shopify.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+
+  // Only redirect to dashboard when both shop + host are present (post-OAuth redirect from Shopify)
+  if (url.searchParams.get("shop") && url.searchParams.get("host")) {
+    throw redirect(`/dashboard?${url.searchParams.toString()}`);
+  }
+
+  return login(request);
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  return login(request);
+};
+
+export default function Index() {
+  const data = useLoaderData<{ shop?: string }>();
+  return (
+    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <h1>Split Tester</h1>
+      <p>Enter your Shopify store domain to continue.</p>
+      <Form method="post">
+        <input
+          type="text"
+          name="shop"
+          placeholder="your-store.myshopify.com"
+          style={{ padding: "0.5rem", marginRight: "0.5rem", width: "280px" }}
+        />
+        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
+          Open app
+        </button>
+      </Form>
+      {data?.shop === "MISSING_SHOP" && <p style={{ color: "red" }}>Please enter a shop domain.</p>}
+      {data?.shop === "INVALID_SHOP" && <p style={{ color: "red" }}>Invalid shop domain.</p>}
+    </div>
+  );
+}

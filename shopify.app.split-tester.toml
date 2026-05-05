@@ -1,0 +1,33 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "842285b54c003859a0ca5d6b5e1b74ad"
+name = "Split tester"
+application_url = "https://anson-heteromerous-lucienne.ngrok-free.dev"
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["shop/update"]
+  uri = "/webhooks"
+
+[access_scopes]
+scopes = "read_products,write_products,read_themes,write_themes,read_orders,write_orders,read_customers,read_content,write_content,read_price_rules,write_price_rules,read_script_tags,write_script_tags"
+
+[auth]
+redirect_urls = [
+  "https://anson-heteromerous-lucienne.ngrok-free.dev/auth/callback",
+  "https://anson-heteromerous-lucienne.ngrok-free.dev/auth/shopify/callback",
+  "https://anson-heteromerous-lucienne.ngrok-free.dev/api/auth/callback",
+]
+
+[pos]
+embedded = false
