@@ -2,6 +2,7 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
+  DeliveryMethod,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
@@ -9,15 +10,23 @@ import { prisma } from "./db.server";
 import { syncConfigToMetafield, ensureMetafieldDefinition } from "./lib/experiments/config.server";
 import { getShopMetadata } from "./lib/shopify/admin.server";
 
+const APP_URL = process.env.SHOPIFY_APP_URL!;
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY!,
   apiSecretKey: process.env.SHOPIFY_API_SECRET!,
   apiVersion: ApiVersion.January25,
   scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL!,
+  appUrl: APP_URL,
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
+  webhooks: {
+    ORDERS_CREATE: { deliveryMethod: DeliveryMethod.Http, callbackUrl: "/webhooks" },
+    ORDERS_PAID: { deliveryMethod: DeliveryMethod.Http, callbackUrl: "/webhooks" },
+    ORDERS_CANCELLED: { deliveryMethod: DeliveryMethod.Http, callbackUrl: "/webhooks" },
+    ORDERS_UPDATED: { deliveryMethod: DeliveryMethod.Http, callbackUrl: "/webhooks" },
+  },
   hooks: {
     afterAuth: async ({ session, admin }) => {
       shopify.registerWebhooks({ session });
