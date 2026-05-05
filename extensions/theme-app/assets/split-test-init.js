@@ -209,6 +209,32 @@
       sendEvent('ADD_TO_CART');
     }
 
+    var _lastCheckout = 0;
+    function sendCheckout() {
+      var now = Date.now();
+      if (now - _lastCheckout < 500) return;
+      _lastCheckout = now;
+      sendEvent('INITIATE_CHECKOUT');
+    }
+
+    function trackCheckout() {
+      // 1. Form submit to /checkout (cart page checkout button)
+      d.addEventListener('submit', function(e) {
+        var action = (e.target && (e.target.action || e.target.getAttribute('action'))) || '';
+        if (action.indexOf('/checkout') !== -1) sendCheckout();
+      }, true);
+
+      // 2. Click on common checkout button selectors
+      d.addEventListener('click', function(e) {
+        var t = e.target;
+        if (!t) return;
+        var el = t.closest
+          ? t.closest('[name="checkout"],[href*="/checkout"],[data-checkout-btn],#checkout,.cart__checkout,.cart-checkout')
+          : null;
+        if (el) sendCheckout();
+      }, true);
+    }
+
     function trackAtc() {
       // 1. Standard form submit to /cart/add (most Shopify themes)
       d.addEventListener('submit', function(e) {
@@ -290,6 +316,7 @@
       confirmAssign();
       applyPriceAdj();
       trackAtc();
+      trackCheckout();
     }
 
     if (d.readyState === 'loading') {
