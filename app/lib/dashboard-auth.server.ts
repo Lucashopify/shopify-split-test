@@ -38,6 +38,7 @@ export async function requireDashboardSession(request: Request) {
   const setCookie = await sessionStorage.commitSession(cookieSession);
 
   return {
+    session: { shop },
     shop,
     admin,
     headers: new Headers({ "Set-Cookie": setCookie }),
