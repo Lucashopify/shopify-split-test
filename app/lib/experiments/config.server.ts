@@ -122,7 +122,9 @@ export async function ensureMetafieldDefinition(admin: AdminClient): Promise<voi
     { variables: { definition } },
   );
 
-  const { data: createData } = await createResp.json();
+  const createJson = await createResp.json();
+  console.log("[ensureMetafieldDefinition] create response:", JSON.stringify(createJson));
+  const createData = createJson.data;
   const errs: Array<{ code: string; message: string }> =
     createData?.metafieldDefinitionCreate?.userErrors ?? [];
 

@@ -25,6 +25,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }`);
     const defData = await defResp.json();
+    console.log("[settings loader] metafieldDefinitions response:", JSON.stringify(defData));
     metafieldDefinitionExists = (defData.data?.metafieldDefinitions?.nodes?.length ?? 0) > 0;
   } catch (err: unknown) {
     if (isForbidden(err)) {
