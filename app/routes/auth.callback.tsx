@@ -182,5 +182,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[auth/callback] Metafield definition setup failed (non-fatal):", err);
   }
 
+  // Register order webhooks programmatically (toml deploy can't subscribe to
+  // protected customer data topics without Partner Dashboard approval)
+  try {
+    const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+    const webhookUrl = `${appUrl}/webhooks`;
+    const restBase = `https://${shop}/admin/api/2025-01/webhooks.json`;
+    const restHeaders = {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": access_token,
+    };
+    const topics = ["orders/create", "orders/paid", "orders/cancelled", "orders/updated"];
+    for (const topic of topics) {
+      const r = await fetch(restBase, {
+        method: "POST",
+        headers: restHeaders,
+        body: JSON.stringify({ webhook: { topic, address: webhookUrl, format: "json" } }),
+      });
+      if (!r.ok && r.status !== 422) {
+        // 422 = already exists — fine
+        const body = await r.text();
+        console.warn(`[auth/callback] Webhook ${topic} registration failed:`, r.status, body);
+      } else {
+        console.log(`[auth/callback] Webhook ${topic} registered (or already exists)`);
+      }
+    }
+  } catch (err) {
+    console.error("[auth/callback] Webhook registration failed (non-fatal):", err);
+  }
+
   throw redirect(`/dashboard?shop=${shop}`);
 };

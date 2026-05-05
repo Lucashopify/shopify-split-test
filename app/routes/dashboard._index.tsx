@@ -103,11 +103,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     count: s._count.id,
   }));
 
-  // Conversion funnel (distinct visitor-level counts)
+  // Conversion funnel
   const pageViews = eventsByType.find((e) => e.type === "PAGE_VIEW")?.count ?? 0;
   const atcCount = eventsByType.find((e) => e.type === "ADD_TO_CART")?.count ?? 0;
   const checkoutCount = eventsByType.find((e) => e.type === "INITIATE_CHECKOUT")?.count ?? 0;
-  const purchaseCount = eventsByType.find((e) => e.type === "PURCHASE")?.count ?? 0;
+  // Purchases come from the Order table (set by orders/paid webhook), not Event rows
+  const purchaseCount = shopId
+    ? await prisma.order.count({ where: { shopId, processedAt: { gte: sevenDaysAgo } } })
+    : 0;
 
   return data({
     shopDomain,
