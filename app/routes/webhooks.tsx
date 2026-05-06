@@ -82,6 +82,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // -----------------------------------------------------------------------
+    // Billing — keep our DB in sync if Shopify changes subscription status
+    case "APP_SUBSCRIPTIONS_UPDATE": {
+      const data = payload as {
+        app_subscription?: {
+          admin_graphql_api_id?: string;
+          status?: string;
+          name?: string;
+        };
+      };
+      const sub = data.app_subscription;
+      const status = sub?.status?.toLowerCase();
+      const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: shop } });
+      if (shopRecord && status) {
+        if (status === "cancelled" || status === "declined" || status === "expired" || status === "frozen") {
+          await prisma.billingPlan.upsert({
+            where: { shopId: shopRecord.id },
+            create: { shopId: shopRecord.id, planName: "free_trial", monthlyVisitorCap: 10_000, status: "cancelled" },
+            update: { planName: "free_trial", monthlyVisitorCap: 10_000, status: "cancelled", shopifyChargeId: null },
+          });
+          console.log(`[billing] Subscription ${status} for ${shop} — downgraded to free`);
+        } else if (status === "active") {
+          // Re-activate if Shopify marks it active (e.g. after frozen payment resolved)
+          await prisma.billingPlan.updateMany({
+            where: { shopId: shopRecord.id },
+            data: { status: "active" },
+          });
+          console.log(`[billing] Subscription reactivated for ${shop}`);
+        }
+      }
+      break;
+    }
+
+    // -----------------------------------------------------------------------
     case "PRODUCTS_UPDATE": {
       // TODO Phase 4: invalidate price-test Shopify Function if product price
       // was changed outside the app
