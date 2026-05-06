@@ -1,6 +1,7 @@
 import { data, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import React from "react";
+import type { Prisma } from "@prisma/client";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { syncConfigToMetafield } from "../lib/experiments/config.server";
@@ -48,6 +49,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   };
 
   // Aggregate ExperimentResult rows per variant (cumulative across all windows)
+  const auditLogs = await prisma.auditLog.findMany({
+    where: { experimentId: experiment.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
   const resultRows = await prisma.experimentResult.groupBy({
     by: ["variantId"],
     where: { experimentId: experiment.id },
@@ -171,7 +178,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     visitorType: mergeDim(vtEvents, vtOrders),
   };
 
-  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown }, { headers: { "Set-Cookie": setCookie } });
+  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -196,12 +203,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   };
 
   if (statusMap[intent]) {
+    const newStatus = statusMap[intent];
     await prisma.experiment.update({
       where: { id: exp.id },
       data: {
-        status: statusMap[intent],
-        // Record first time the experiment goes live
-        ...(statusMap[intent] === "RUNNING" && !exp.startAt ? { startAt: new Date() } : {}),
+        status: newStatus,
+        ...(newStatus === "RUNNING" && !exp.startAt ? { startAt: new Date() } : {}),
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        shopId: shop.id,
+        experimentId: exp.id,
+        actor: "merchant",
+        action: `experiment.status.${newStatus.toLowerCase()}`,
+        before: { status: exp.status } as Prisma.InputJsonValue,
+        after: { status: newStatus } as Prisma.InputJsonValue,
       },
     });
     try {
@@ -253,10 +270,10 @@ const STATUS_COLORS: Record<string, string> = {
   COMPLETED: "#2563eb", ARCHIVED: "#9ca3af", SCHEDULED: "#7c3aed",
 };
 
-const TABS = ["Overview", "Variants", "Results"];
+const TABS = ["Overview", "Variants", "Results", "History"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders, funnel, breakdown } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -532,9 +549,20 @@ export default function ExperimentDetail() {
         </div>
       )}
 
+      {tab === 3 && (
+        <AuditLogTab logs={auditLogs} />
+      )}
+
       {tab === 2 && (
         <div>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginBottom: "1rem" }}>
+            <a
+              href={`/dashboard/experiments/${experiment.id}/export`}
+              download
+              style={{ fontSize: "0.8125rem", background: "#f4f4f4", border: "1px solid #e9e9e9", borderRadius: 6, padding: "0.35rem 0.875rem", cursor: "pointer", textDecoration: "none", color: "#111" }}
+            >
+              ↓ Export CSV
+            </a>
             <rollupFetcher.Form method="post">
               <input type="hidden" name="intent" value="force_rollup" />
               <button
@@ -568,6 +596,79 @@ export default function ExperimentDetail() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const ACTION_LABELS: Record<string, string> = {
+  "experiment.created": "Experiment created",
+  "experiment.status.running": "Experiment started",
+  "experiment.status.paused": "Experiment paused",
+  "experiment.status.completed": "Marked as complete",
+  "experiment.status.archived": "Archived",
+  "experiment.status.scheduled": "Scheduled",
+  "experiment.auto_paused.srm": "Auto-paused — Sample Ratio Mismatch detected",
+  "experiment.auto_paused.rev_drop": "Auto-paused — Control CVR drop detected",
+};
+
+type AuditLogEntry = {
+  id: string;
+  actor: string;
+  action: string;
+  before: unknown;
+  after: unknown;
+  createdAt: string | Date;
+};
+
+function AuditLogTab({ logs }: { logs: AuditLogEntry[] }) {
+  if (logs.length === 0) {
+    return (
+      <div style={{ padding: "2rem", border: "1px dashed #e9e9e9", borderRadius: 8, textAlign: "center" }}>
+        <p style={{ fontSize: "0.875rem", color: "#999", margin: 0 }}>No history yet. Actions like starting, pausing, and completing the experiment will appear here.</p>
+      </div>
+    );
+  }
+
+  const actorColor: Record<string, string> = { merchant: "#6366f1", system: "#f59e0b", worker: "#6b7280" };
+  const actorLabel: Record<string, string> = { merchant: "You", system: "System", worker: "Worker" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {logs.map((log, i) => {
+        const before = (log.before ?? null) as Record<string, unknown> | null;
+        const after = (log.after ?? null) as Record<string, unknown> | null;
+        const isLast = i === logs.length - 1;
+        return (
+          <div key={log.id} style={{ display: "flex", gap: "1rem", paddingBottom: isLast ? 0 : "1.25rem" }}>
+            {/* Timeline line + dot */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: actorColor[log.actor] ?? "#ccc", marginTop: 4, flexShrink: 0 }} />
+              {!isLast && <div style={{ width: 1, flex: 1, background: "#f0f0f0", marginTop: 4 }} />}
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, paddingBottom: isLast ? 0 : "0.25rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.2rem" }}>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#111" }}>
+                  {ACTION_LABELS[log.action] ?? log.action}
+                </span>
+                <span style={{ fontSize: "0.7rem", color: actorColor[log.actor] ?? "#aaa", background: "#f5f5f5", borderRadius: 3, padding: "0.1rem 0.4rem" }}>
+                  {actorLabel[log.actor] ?? log.actor}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "#aaa" }}>
+                {new Date(String(log.createdAt)).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </div>
+              {before?.status != null && after?.status != null && String(before.status) !== String(after.status) && (
+                <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", color: "#777", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  <span style={{ background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.4rem" }}>{String(before.status).toLowerCase()}</span>
+                  <span style={{ color: "#bbb" }}>→</span>
+                  <span style={{ background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.4rem" }}>{String(after.status).toLowerCase()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
