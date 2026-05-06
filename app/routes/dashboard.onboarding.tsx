@@ -98,7 +98,7 @@ export default function Onboarding() {
             <div style={{
               height: "100%",
               borderRadius: 2,
-              background: allDone ? "#16a34a" : "#111",
+              background: "#111",
               width: `${(completedCount / 3) * 100}%`,
               transition: "width 0.4s ease",
             }} />
@@ -111,18 +111,18 @@ export default function Onboarding() {
 
       {/* All done banner */}
       {allDone && (
-        <div style={{ marginBottom: "1.5rem", padding: "1rem 1.25rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+        <div style={{ marginBottom: "1.5rem", padding: "1rem 1.25rem", background: "#f3f3f3", border: "1px solid #e9e9e9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
           <div>
-            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#166534", marginBottom: "0.2rem" }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111", marginBottom: "0.2rem" }}>
               You're all set
             </div>
-            <div style={{ fontSize: "0.8125rem", color: "#15803d" }}>
+            <div style={{ fontSize: "0.8125rem", color: "#555" }}>
               Your experiment is live. Check the Results tab to see data as it comes in.
             </div>
           </div>
           <button
             onClick={() => navigate("/dashboard/experiments")}
-            style={{ padding: "0.4rem 0.875rem", background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", flexShrink: 0 }}
+            style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", flexShrink: 0 }}
           >
             View experiments
           </button>
@@ -135,10 +135,10 @@ export default function Onboarding() {
           <div
             key={i}
             style={{
-              border: `1px solid ${step.done ? "#d1fae5" : "#e9e9e9"}`,
+              border: "1px solid #e9e9e9",
               borderRadius: 10,
               padding: "1.25rem 1.5rem",
-              background: step.done ? "#f9fffe" : "#fff",
+              background: step.done ? "#fafafa" : "#fff",
               display: "flex",
               gap: "1.125rem",
               alignItems: "flex-start",
@@ -146,7 +146,7 @@ export default function Onboarding() {
           >
             <div style={{
               ...checkStyle,
-              background: step.done ? "#16a34a" : "#f3f3f3",
+              background: step.done ? "#111" : "#f3f3f3",
               color: step.done ? "#fff" : "#aaa",
               marginTop: "0.1rem",
             }}>
@@ -155,7 +155,7 @@ export default function Onboarding() {
 
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "0.4rem" }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: step.done ? "#166534" : "#111" }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111" }}>
                   {step.title}
                 </div>
                 {!step.done && (
@@ -171,7 +171,7 @@ export default function Onboarding() {
                 {step.description}
               </p>
               {step.note && (
-                <p style={{ margin: 0, fontSize: "0.75rem", color: step.done ? "#16a34a" : "#aaa" }}>
+                <p style={{ margin: 0, fontSize: "0.75rem", color: step.done ? "#555" : "#aaa" }}>
                   {step.done ? "✓ " : ""}{step.note}
                 </p>
               )}
