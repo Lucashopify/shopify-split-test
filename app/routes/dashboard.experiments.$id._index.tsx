@@ -404,6 +404,15 @@ export default function ExperimentDetail() {
 
       {tab === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {(() => {
+            const total = experiment.variants.reduce((s, v) => s + v.trafficWeight, 0);
+            if (total !== 100) return (
+              <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#991b1b" }}>
+                ⚠ Variant weights sum to <strong>{total}%</strong> — must equal 100%. Visitors in the {total < 100 ? `${100 - total}% gap` : `${total - 100}% overflow`} won't be assigned correctly.
+              </div>
+            );
+            return null;
+          })()}
           {experiment.variants.map((v) => (
             <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", border: "1px solid #e9e9e9", borderRadius: 8 }}>
               <div>

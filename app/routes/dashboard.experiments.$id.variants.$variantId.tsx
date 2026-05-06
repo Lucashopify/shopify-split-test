@@ -189,7 +189,16 @@ export default function VariantEditor() {
           <div>
             <label style={label}>Traffic weight (%)</label>
             <input style={input} type="number" value={trafficWeight} onChange={(e) => setTrafficWeight(e.target.value)} min={1} max={99} autoComplete="off" />
-            <p style={helpText}>Weights across all variants should sum to 100.</p>
+            {(() => {
+              const total = experiment.variants.reduce((s, v) =>
+                s + (v.id === variant.id ? Number(trafficWeight) || 0 : v.trafficWeight), 0);
+              const ok = total === 100;
+              return (
+                <p style={{ ...helpText, color: ok ? "#aaa" : "#dc2626", fontWeight: ok ? 400 : 500 }}>
+                  Total across all variants: {total}%{!ok ? " — must equal 100" : ""}
+                </p>
+              );
+            })()}
           </div>
         </div>
       </div>
