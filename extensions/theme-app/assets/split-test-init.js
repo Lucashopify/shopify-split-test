@@ -113,6 +113,26 @@
         html.setAttribute('data-spt-price-adj-type', av.priceAdjType || 'percent');
         html.setAttribute('data-spt-price-adj-value', String(av.priceAdjValue));
       }
+      if (eA.type === 'TEMPLATE' && av.redirectUrl) {
+        var viewName = av.redirectUrl;
+        var tParams = new URLSearchParams(location.search);
+        if (tParams.get('view') !== viewName) {
+          var tmpl = eA.targetTemplate;
+          var applies = true;
+          if (tmpl === 'product') applies = /^\/products\//.test(location.pathname);
+          else if (tmpl === 'collection') applies = /^\/collections\//.test(location.pathname);
+          else if (tmpl === 'page') applies = /^\/pages\//.test(location.pathname);
+          else if (tmpl === 'index') applies = location.pathname === '/';
+          else if (tmpl === 'blog') applies = /^\/blogs\/[^/]+\/?$/.test(location.pathname);
+          else if (tmpl === 'article') applies = /^\/blogs\/.+\/.+/.test(location.pathname);
+          if (applies) {
+            tParams.set('view', viewName);
+            clearTimeout(safetyTimer);
+            w.location.replace(location.pathname + '?' + tParams.toString() + location.hash);
+            return;
+          }
+        }
+      }
       if (eA.type === 'THEME' && av.themeId) {
         // Extract numeric ID from GID like "gid://shopify/Theme/123456789"
         var numericId = String(av.themeId).split('/').pop();
@@ -311,7 +331,7 @@
     }
 
     function applyContentVariants() {
-      var sectionTypes = { SECTION: 1, PAGE: 1, TEMPLATE: 1 };
+      var sectionTypes = { SECTION: 1, PAGE: 1 };
       for (var ci = 0; ci < exps.length; ci++) {
         var eC = exps[ci];
         if (!sectionTypes[eC.type]) continue;

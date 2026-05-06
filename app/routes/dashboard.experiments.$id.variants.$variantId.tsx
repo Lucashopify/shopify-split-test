@@ -54,8 +54,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const adjValue = parseFloat(String(formData.get("priceAdjValue") ?? "0"));
     updates.priceAdjType = adjType;
     updates.priceAdjValue = isNaN(adjValue) ? null : adjValue;
-  } else if (["SECTION", "PAGE", "TEMPLATE"].includes(experiment.type)) {
+  } else if (["SECTION", "PAGE"].includes(experiment.type)) {
     updates.customLiquid = String(formData.get("customLiquid") ?? "").trim() || null;
+  } else if (experiment.type === "TEMPLATE") {
+    updates.redirectUrl = String(formData.get("redirectUrl") ?? "").trim() || null;
   }
 
   await prisma.variant.update({ where: { id: variant.id }, data: updates });
@@ -135,7 +137,8 @@ export default function VariantEditor() {
     if (type === "THEME") fd.set("themeId", themeId);
     if (type === "URL_REDIRECT") fd.set("redirectUrl", redirectUrl);
     if (type === "PRICE") { fd.set("priceAdjType", priceAdjType); fd.set("priceAdjValue", priceAdjValue); }
-    if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) fd.set("customLiquid", customLiquid);
+    if (["SECTION", "PAGE"].includes(type)) fd.set("customLiquid", customLiquid);
+    if (type === "TEMPLATE") fd.set("redirectUrl", redirectUrl);
     submit(fd, { method: "post" });
   }, [name, trafficWeight, themeId, redirectUrl, priceAdjType, priceAdjValue, customLiquid, type, submit]);
 
@@ -253,8 +256,8 @@ export default function VariantEditor() {
         </div>
       )}
 
-      {/* SECTION / PAGE / TEMPLATE */}
-      {["SECTION", "PAGE", "TEMPLATE"].includes(type) && (
+      {/* SECTION / PAGE */}
+      {["SECTION", "PAGE"].includes(type) && (
         <div style={card}>
           <div style={cardTitle}>HTML content</div>
           <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
@@ -270,6 +273,35 @@ export default function VariantEditor() {
           <div style={{ ...infoBanner, marginTop: "1rem" }}>
             The Variant Content block stays hidden until the correct variant's HTML is injected — no content flash.
           </div>
+        </div>
+      )}
+
+      {/* TEMPLATE */}
+      {type === "TEMPLATE" && (
+        <div style={card}>
+          <div style={cardTitle}>Alternate template</div>
+          {variant.isControl ? (
+            <div style={infoBanner}>The control variant uses the default template. No configuration needed.</div>
+          ) : (
+            <>
+              <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
+                In your theme code, duplicate the template file (e.g. <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.json</code> → <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>), make your changes, then enter the suffix here. Variant visitors will be routed to <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view=&lt;suffix&gt;</code> automatically.
+              </p>
+              <label style={label}>View name (suffix)</label>
+              <input
+                style={input}
+                value={redirectUrl}
+                onChange={(e) => setRedirectUrl(e.target.value)}
+                placeholder="e.g. my-test"
+                autoComplete="off"
+              />
+              {redirectUrl && (
+                <p style={{ ...helpText, marginTop: "0.5rem" }}>
+                  Variant visitors will load: <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view={redirectUrl}</code>
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

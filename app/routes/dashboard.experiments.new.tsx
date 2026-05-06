@@ -11,7 +11,7 @@ const EXPERIMENT_TYPES = [
   { label: "Section / Content test — swap page sections", value: "SECTION" },
   { label: "Price test — compare product prices", value: "PRICE" },
   { label: "URL redirect — route traffic to different pages", value: "URL_REDIRECT" },
-  { label: "Page template test", value: "TEMPLATE" },
+  { label: "Template test — swap a page template (product, collection, etc.)", value: "TEMPLATE" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -54,10 +54,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     variantBData.priceAdjType = String(formData.get("variantPriceAdjType") ?? "percent");
     const adjValue = parseFloat(String(formData.get("variantPriceAdjValue") ?? ""));
     if (!isNaN(adjValue)) variantBData.priceAdjValue = adjValue;
-  } else if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) {
+  } else if (["SECTION", "PAGE"].includes(type)) {
     const liquid = String(formData.get("variantCustomLiquid") ?? "").trim();
     if (liquid) variantBData.customLiquid = liquid;
+  } else if (type === "TEMPLATE") {
+    const viewName = String(formData.get("variantViewName") ?? "").trim();
+    if (viewName) variantBData.redirectUrl = viewName;
   }
+
+  const templateType = type === "TEMPLATE" ? String(formData.get("templateType") ?? "").trim() || null : null;
 
   const experiment = await prisma.experiment.create({
     data: {
@@ -67,6 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       type,
       trafficAllocation,
       segmentId,
+      targetTemplate: templateType,
       variants: { create: [{ name: controlName, isControl: true, trafficWeight: 50 }, variantBData as any] },
     },
   });
@@ -127,6 +133,8 @@ export default function NewExperiment() {
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
   const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
   const [variantCustomLiquid, setVariantCustomLiquid] = useState("");
+  const [variantViewName, setVariantViewName] = useState("");
+  const [templateType, setTemplateType] = useState("product");
 
   const themeOptions = [
     { label: "— Select a theme —", value: "" },
@@ -144,12 +152,13 @@ export default function NewExperiment() {
     if (type === "THEME") fd.set("variantThemeId", variantThemeId);
     if (type === "URL_REDIRECT") fd.set("variantRedirectUrl", variantRedirectUrl);
     if (type === "PRICE") { fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); }
-    if (["SECTION", "PAGE", "TEMPLATE"].includes(type)) fd.set("variantCustomLiquid", variantCustomLiquid);
+    if (["SECTION", "PAGE"].includes(type)) fd.set("variantCustomLiquid", variantCustomLiquid);
+    if (type === "TEMPLATE") { fd.set("variantViewName", variantViewName); fd.set("templateType", templateType); }
     if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
   }, [name, hypothesis, type, trafficAllocation, controlName, variantName,
       variantThemeId, variantRedirectUrl, variantPriceAdjType, variantPriceAdjValue,
-      variantCustomLiquid, segmentId, submit]);
+      variantCustomLiquid, variantViewName, templateType, segmentId, submit]);
 
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 720, margin: "0 auto" }}>
@@ -258,16 +267,48 @@ export default function NewExperiment() {
           </div>
         )}
 
-        {["SECTION", "PAGE", "TEMPLATE"].includes(type) && (
+        {["SECTION", "PAGE"].includes(type) && (
           <div>
-            <label style={label}>{variantName || "Variant B"} Liquid code</label>
+            <label style={label}>{variantName || "Variant B"} HTML content</label>
             <textarea
               style={{ ...input, minHeight: 180, resize: "vertical", fontFamily: "monospace", fontSize: "0.8125rem" }}
               value={variantCustomLiquid}
               onChange={(e) => setVariantCustomLiquid(e.target.value)}
-              placeholder={"{% if product.available %}\n  <p>In stock — ships today!</p>\n{% endif %}"}
+              placeholder={"<p class=\"hero__subtitle\">Summer sale — up to 40% off</p>\n<a href=\"/collections/sale\" class=\"button\">Shop now</a>"}
             />
-            <p style={helpText}>This Liquid is injected via the Variant Content app block in the Theme Editor.</p>
+            <p style={helpText}>Injected via the Variant Content app block in the Theme Editor.</p>
+          </div>
+        )}
+
+        {type === "TEMPLATE" && (
+          <div>
+            <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
+              In your theme, duplicate the template you want to test (e.g. <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.json</code> → <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>), make your changes, then enter the suffix below.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label style={label}>Template type</label>
+                <select style={input} value={templateType} onChange={(e) => setTemplateType(e.target.value)}>
+                  <option value="product">Product</option>
+                  <option value="collection">Collection</option>
+                  <option value="page">Page</option>
+                  <option value="index">Homepage</option>
+                  <option value="blog">Blog</option>
+                  <option value="article">Article</option>
+                </select>
+              </div>
+              <div>
+                <label style={label}>View name (suffix)</label>
+                <input
+                  style={input}
+                  value={variantViewName}
+                  onChange={(e) => setVariantViewName(e.target.value)}
+                  placeholder="e.g. my-test"
+                  autoComplete="off"
+                />
+                <p style={helpText}>For <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>, enter <strong>my-test</strong>.</p>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -91,7 +91,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
         redirectUrl: v.redirectUrl,
         priceAdjType: v.priceAdjType,
         priceAdjValue: v.priceAdjValue,
-        ...( ["SECTION", "PAGE", "TEMPLATE"].includes(exp.type) ? { content: v.customLiquid } : {} ),
+        ...( ["SECTION", "PAGE"].includes(exp.type) ? { content: v.customLiquid } : {} ),
       })),
     })),
     apiUrl: process.env.SHOPIFY_APP_URL ?? "",
