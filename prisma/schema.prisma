@@ -47,6 +47,13 @@ model Shop {
   uninstalledAt     DateTime?
   webhooksRegisteredAt DateTime?
 
+  // Google Analytics 4 integration
+  ga4RefreshToken      String?
+  ga4AccessToken       String?
+  ga4AccessTokenExpiry DateTime?
+  ga4PropertyId        String?   // "properties/123456789"
+  ga4PropertyName      String?   // display name shown in settings
+
   experiments       Experiment[]
   brandTokens       BrandTokens?
   billingPlan       BillingPlan?

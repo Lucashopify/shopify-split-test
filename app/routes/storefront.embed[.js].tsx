@@ -114,6 +114,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  /* ── GA4 experiment impression ───────────────────────────────────── */
+  if(changed&&typeof w.gtag==='function'){
+    var userProps={};
+    for(var gi=0;gi<exps.length;gi++){
+      var gExp=exps[gi];
+      var gVid=asgn[gExp.id];
+      if(!gVid)continue;
+      var gVars=gExp.variants||[],gVarName=gVid;
+      for(var gj=0;gj<gVars.length;gj++){if(gVars[gj].id===gVid){gVarName=gVars[gj].name||gVid;break;}}
+      var gLabel=(gExp.name||gExp.id)+': '+gVarName;
+      userProps['split_test_variant']=gLabel;
+      w.gtag('event','experiment_impression',{
+        experiment_id:gExp.id,
+        experiment_name:gExp.name||gExp.id,
+        variant_id:gVid,
+        variant_name:gVarName,
+      });
+    }
+    if(Object.keys(userProps).length){
+      w.gtag('set','user_properties',userProps);
+    }
+  }
+
   /* ── expose globals ──────────────────────────────────────────────── */
   w.__SPT_VID__=visitorId;
   w.__SPT_ASGN__=asgn;

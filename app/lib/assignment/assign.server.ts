@@ -95,10 +95,14 @@ export async function assignVisitor(input: AssignInput): Promise<AssignResult> {
     },
     update: {
       lastSeenAt: new Date(),
-      // Update attributes if they weren't set before
       device: device ?? undefined,
       country: country ?? undefined,
       shopifyCustomerId: shopifyCustomerId ?? undefined,
+      // Overwrite UTM if the current visit has UTM params (paid/campaign visit)
+      // This means we track the most recent paid source, not just first-touch
+      ...(utmSource ? { utmSource, utmMedium: utmMedium ?? null, utmCampaign: utmCampaign ?? null } : {}),
+      // Overwrite referrer only if no UTM (organic/referral visit)
+      ...(referrer && !utmSource ? { referrer } : {}),
     },
   });
 

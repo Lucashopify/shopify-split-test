@@ -130,7 +130,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             WHEN lower(v."utmMedium") IN ('cpc','ppc','paid','paidsearch','paid_search') THEN 'paid'
             WHEN lower(v."utmMedium") IN ('email','newsletter') OR lower(v."utmSource") = 'email' THEN 'email'
             WHEN lower(v."utmMedium") IN ('social','social-media') OR lower(v."utmSource") IN ('instagram','facebook','twitter','tiktok','pinterest','youtube','linkedin') THEN 'social'
-            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'organic'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer SIMILAR TO '%(google\.|bing\.|yahoo\.|duckduckgo\.|baidu\.|yandex\.|ecosia\.|ask\.)%' THEN 'organic'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'referral'
             ELSE 'direct'
           END as source
         FROM "Event" e JOIN "Visitor" v ON e."visitorId" = v.id
@@ -147,7 +148,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             WHEN lower(v."utmMedium") IN ('cpc','ppc','paid','paidsearch','paid_search') THEN 'paid'
             WHEN lower(v."utmMedium") IN ('email','newsletter') OR lower(v."utmSource") = 'email' THEN 'email'
             WHEN lower(v."utmMedium") IN ('social','social-media') OR lower(v."utmSource") IN ('instagram','facebook','twitter','tiktok','pinterest','youtube','linkedin') THEN 'social'
-            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'organic'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer SIMILAR TO '%(google\.|bing\.|yahoo\.|duckduckgo\.|baidu\.|yandex\.|ecosia\.|ask\.)%' THEN 'organic'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'referral'
             ELSE 'direct'
           END as source
         FROM "Order" o JOIN "Visitor" v ON o."visitorId" = v.id

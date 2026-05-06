@@ -30,6 +30,7 @@ import { prisma } from "../../db.server";
 
 export type ExperimentConfigEntry = {
   id: string;
+  name: string;
   type: string;
   status: string;
   trafficAllocation: number;
@@ -38,6 +39,7 @@ export type ExperimentConfigEntry = {
   segment: { id: string; rules: unknown } | null;
   variants: Array<{
     id: string;
+    name: string;
     trafficWeight: number;
     isControl: boolean;
     themeId: string | null;
@@ -64,7 +66,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       variants: {
         orderBy: { createdAt: "asc" },
         select: {
-          id: true, trafficWeight: true, isControl: true,
+          id: true, name: true, trafficWeight: true, isControl: true,
           themeId: true, redirectUrl: true,
           priceAdjType: true, priceAdjValue: true,
           customLiquid: true,
@@ -77,6 +79,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
   return {
     experiments: experiments.map((exp) => ({
       id: exp.id,
+      name: exp.name,
       type: exp.type,
       status: exp.status,
       trafficAllocation: exp.trafficAllocation,
@@ -85,6 +88,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       segment: exp.segment,
       variants: exp.variants.map((v) => ({
         id: v.id,
+        name: v.name,
         trafficWeight: v.trafficWeight,
         isControl: v.isControl,
         themeId: v.themeId,
