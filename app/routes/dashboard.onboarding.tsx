@@ -2,6 +2,7 @@ import { type LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
+import { getPlanLimits } from "../lib/billing.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, setCookie } = await requireDashboardSession(request);
@@ -9,10 +10,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const [experimentCount, runningCount, eventCount] = await Promise.all([
+  const [experimentCount, runningCount, eventCount, planLimits] = await Promise.all([
     prisma.experiment.count({ where: { shopId: shop.id } }),
     prisma.experiment.count({ where: { shopId: shop.id, status: "RUNNING" } }),
     prisma.event.count({ where: { shopId: shop.id }, take: 1 }),
+    getPlanLimits(shop.id),
   ]);
 
   return Response.json(
@@ -21,6 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       embedActive: eventCount > 0,
       hasExperiment: experimentCount > 0,
       hasRunning: runningCount > 0,
+      isPaid: planLimits.planName !== "free_trial",
     },
     { headers: { "Set-Cookie": setCookie } },
   );
@@ -39,12 +42,12 @@ const checkStyle: React.CSSProperties = {
 };
 
 export default function Onboarding() {
-  const { shop, embedActive, hasExperiment, hasRunning } = useLoaderData<typeof loader>();
+  const { shop, embedActive, hasExperiment, hasRunning, isPaid } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
   const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps`;
-  const completedCount = [embedActive, hasExperiment, hasRunning].filter(Boolean).length;
-  const allDone = completedCount === 3;
+  const completedCount = [embedActive, hasExperiment, hasRunning, isPaid].filter(Boolean).length;
+  const allDone = completedCount === 4;
 
   const steps = [
     {
@@ -79,6 +82,16 @@ export default function Onboarding() {
       cta: "Go to experiments",
       action: () => navigate("/dashboard/experiments"),
     },
+    {
+      done: isPaid,
+      number: "4",
+      title: "Upgrade your plan",
+      description:
+        "The free plan supports 3 running experiments and 10,000 visitors/month. Upgrade to unlock all test types, unlimited experiments, audience segments, and higher traffic limits.",
+      note: isPaid ? "You're on a paid plan — all features unlocked." : null,
+      cta: "View plans",
+      action: () => navigate("/dashboard/billing"),
+    },
   ];
 
   return (
@@ -99,12 +112,12 @@ export default function Onboarding() {
               height: "100%",
               borderRadius: 2,
               background: "#111",
-              width: `${(completedCount / 3) * 100}%`,
+              width: `${(completedCount / 4) * 100}%`,
               transition: "width 0.4s ease",
             }} />
           </div>
           <span style={{ fontSize: "0.75rem", color: "#999", flexShrink: 0 }}>
-            {completedCount} / 3 complete
+            {completedCount} / 4 complete
           </span>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
+import { getPlanLimits, checkExperimentLimit, checkTypeAllowed } from "../lib/billing.server";
 import type { ExperimentType } from "@prisma/client";
 
 const EXPERIMENT_TYPES = [
@@ -21,10 +22,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     getThemeTemplateFiles(restFetch).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
   ]);
   const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
-  const segments = dbShop
-    ? await prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } })
-    : [];
-  return { themes, templateFiles, segments };
+  const [segments, planLimits] = await Promise.all([
+    dbShop ? prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } }) : [],
+    dbShop ? getPlanLimits(dbShop.id) : null,
+  ]);
+  return { themes, templateFiles, segments, planLimits };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -44,6 +46,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) return { error: "Shop not found. Try reinstalling the app." };
+
+  // Plan gating
+  const limits = await getPlanLimits(shop.id);
+  const typeCheck = checkTypeAllowed(limits, type);
+  if (!typeCheck.allowed) return { error: typeCheck.reason };
+  if (segmentId && !limits.segmentsEnabled) return { error: "Audience segments require the Growth plan or higher." };
+  const limitCheck = await checkExperimentLimit(shop.id);
+  if (!limitCheck.allowed) return { error: limitCheck.reason };
 
   const variantBData: Record<string, unknown> = { name: variantName, isControl: false, trafficWeight: 50 };
   if (type === "THEME") {
@@ -118,7 +128,7 @@ const helpText: React.CSSProperties = {
 };
 
 export default function NewExperiment() {
-  const { themes, templateFiles, segments } = useLoaderData<typeof loader>();
+  const { themes, templateFiles, segments, planLimits } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -215,8 +225,20 @@ export default function NewExperiment() {
         <div style={cardTitle}>Test type</div>
         <label style={label}>What are you testing?</label>
         <select style={input} value={type} onChange={(e) => setType(e.target.value)}>
-          {EXPERIMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          {EXPERIMENT_TYPES.map((t) => {
+            const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
+            return (
+              <option key={t.value} value={t.value} disabled={!!locked}>
+                {locked ? `🔒 ${t.label} — Starter plan required` : t.label}
+              </option>
+            );
+          })}
         </select>
+        {planLimits && !planLimits.allowedTypes.includes(type) && (
+          <p style={{ ...helpText, color: "#dc2626", marginTop: "0.5rem" }}>
+            This test type requires a paid plan. <a href="/dashboard/billing" style={{ color: "#dc2626" }}>Upgrade →</a>
+          </p>
+        )}
       </div>
 
       {/* Variants */}
@@ -340,10 +362,16 @@ export default function NewExperiment() {
         </div>
         <div>
           <label style={label}>Segment <span style={{ color: "#aaa", fontWeight: 400 }}>(optional)</span></label>
-          <select style={input} value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
-            <option value="">— All visitors —</option>
-            {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          {planLimits && !planLimits.segmentsEnabled ? (
+            <div style={{ padding: "0.5rem 0.75rem", background: "#f9fafb", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#aaa" }}>
+              Audience segments require the <a href="/dashboard/billing" style={{ color: "#2563eb" }}>Growth plan</a>.
+            </div>
+          ) : (
+            <select style={input} value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
+              <option value="">— All visitors —</option>
+              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
           <p style={helpText}>Only show this experiment to visitors matching a segment.</p>
         </div>
       </div>
