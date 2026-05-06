@@ -7,7 +7,7 @@ import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
 import type { ExperimentType } from "@prisma/client";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin, session } = await requireDashboardSession(request);
+  const { admin, session, restFetch } = await requireDashboardSession(request);
   const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
@@ -25,7 +25,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (experiment.type === "THEME") {
     try { themes = await getThemes(admin); } catch {}
   } else if (experiment.type === "TEMPLATE") {
-    try { templateFiles = await getThemeTemplateFiles(admin); } catch {}
+    try { templateFiles = await getThemeTemplateFiles(restFetch); } catch {}
   }
 
   return { experiment, variant, themes, templateFiles };

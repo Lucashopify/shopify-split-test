@@ -177,5 +177,15 @@ export async function requireDashboardSession(request: Request) {
   cookieSession.set("shop", shop);
   const setCookie = await sessionStorage.commitSession(cookieSession);
 
-  return { session: { shop }, shop, admin, headers: new Headers({ "Set-Cookie": setCookie }), setCookie };
+  const restFetch = (path: string, init?: RequestInit) =>
+    fetch(`https://${shop}/admin/api/2025-01${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+        ...(init?.headers ?? {}),
+      },
+    });
+
+  return { session: { shop }, shop, admin, restFetch, headers: new Headers({ "Set-Cookie": setCookie }), setCookie };
 }

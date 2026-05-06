@@ -15,10 +15,10 @@ const EXPERIMENT_TYPES = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, shop } = await requireDashboardSession(request);
+  const { admin, shop, restFetch } = await requireDashboardSession(request);
   const [themes, templateFiles] = await Promise.all([
     getThemes(admin).catch(() => [] as Array<{ id: string; name: string; role: string }>),
-    getThemeTemplateFiles(admin).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
+    getThemeTemplateFiles(restFetch).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
   ]);
   const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
   const segments = dbShop

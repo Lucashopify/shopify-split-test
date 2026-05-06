@@ -105,42 +105,28 @@ export async function deleteTheme(
 
 /**
  * Fetch alternate template files (e.g. product.my-test.json) from the live theme.
+ * Uses the REST API (more reliable across API versions than theme.files GraphQL).
  * Returns only files that have a view suffix — default templates are excluded.
  */
 export async function getThemeTemplateFiles(
-  admin: { graphql: (query: string, options?: { variables: Record<string, unknown> }) => Promise<Response> },
+  restFetch: (path: string) => Promise<Response>,
 ): Promise<Array<{ filename: string; type: string; view: string }>> {
-  const themesResp = await admin.graphql(`
-    query GetMainTheme {
-      themes(first: 1, roles: [MAIN]) {
-        nodes { id }
-      }
-    }
-  `);
-  const { data: themesData } = await themesResp.json();
-  const themeId: string | undefined = themesData?.themes?.nodes?.[0]?.id;
+  const themesResp = await restFetch("/themes.json?role=main&fields=id");
+  const themesData = await themesResp.json();
+  const themeId: number | undefined = themesData?.themes?.[0]?.id;
   if (!themeId) return [];
 
-  const filesResp = await admin.graphql(
-    `query GetThemeFiles($id: ID!) {
-      theme(id: $id) {
-        files(first: 250) {
-          nodes { filename }
-        }
-      }
-    }`,
-    { variables: { id: themeId } },
-  );
-  const { data: filesData } = await filesResp.json();
-  const files: Array<{ filename: string }> = filesData?.theme?.files?.nodes ?? [];
+  const assetsResp = await restFetch(`/themes/${themeId}/assets.json?fields=key`);
+  const assetsData = await assetsResp.json();
+  const assets: Array<{ key: string }> = assetsData?.assets ?? [];
 
-  return files
-    .filter((f) => f.filename.startsWith("templates/") && f.filename.endsWith(".json"))
-    .map((f) => {
-      const base = f.filename.slice("templates/".length, -".json".length);
+  return assets
+    .filter((a) => a.key.startsWith("templates/") && a.key.endsWith(".json"))
+    .map((a) => {
+      const base = a.key.slice("templates/".length, -".json".length);
       const dotIdx = base.indexOf(".");
       if (dotIdx === -1) return null; // default template — skip
-      return { filename: f.filename, type: base.slice(0, dotIdx), view: base.slice(dotIdx + 1) };
+      return { filename: a.key, type: base.slice(0, dotIdx), view: base.slice(dotIdx + 1) };
     })
     .filter((f): f is { filename: string; type: string; view: string } => f !== null);
 }
