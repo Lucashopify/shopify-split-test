@@ -217,8 +217,6 @@ export default function SettingsPage() {
   } = useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<{ ok?: boolean; message?: string; error?: string; needsReauth?: boolean }>();
-  const ga4Fetcher = useFetcher<{ ok?: boolean; message?: string; error?: string }>();
-  const [selectedProperty, setSelectedProperty] = React.useState<string>("");
   const syncing = fetcher.state !== "idle";
   const showReauth = needsReauth || fetcher.data?.needsReauth;
   const themeEditorUrl = `https://${shopDomain}/admin/themes/current/editor?context=apps`;
@@ -322,133 +320,31 @@ export default function SettingsPage() {
 
       {/* Google Analytics 4 */}
       <section style={{ marginBottom: "2rem" }}>
-        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Google Analytics 4</div>
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem" }}>
-
-          {/* Error from OAuth */}
-          {ga4Step === "error" && (
-            <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#dc2626" }}>
-              Google authorization failed. Please try again.
-            </div>
-          )}
-
-          {/* GA4 property error */}
-          {ga4Error && (
-            <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: "0.8125rem", color: "#dc2626" }}>
-              {ga4Error}
-            </div>
-          )}
-
-          {/* Action feedback */}
-          {ga4Fetcher.data?.message && (
-            <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8125rem", color: "#15803d" }}>
-              {ga4Fetcher.data.message}
-            </div>
-          )}
-
-          {!ga4Connected ? (
-            /* Not connected */
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
-              <div>
-                <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.25rem" }}>Connect Google Analytics</div>
-                <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>
-                  Log in with Google to link your GA4 property. Experiment variants will appear as a filterable dimension in every GA4 report.
-                </div>
-              </div>
-              <ga4Fetcher.Form method="post" style={{ flexShrink: 0 }}>
-                <input type="hidden" name="intent" value="ga4_connect" />
-                <button
-                  type="submit"
-                  style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.45rem 1rem", background: "#fff", color: "#111", border: "1px solid #dadce0", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.16C6.51 42.62 14.62 48 24 48z"/>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.16C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.55 10.75l7.98-6.16z"/>
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.55 13.25l7.98 6.16C12.43 13.72 17.74 9.5 24 9.5z"/>
-                  </svg>
-                  Sign in with Google
-                </button>
-              </ga4Fetcher.Form>
-            </div>
-          ) : !ga4PropertyId ? (
-            /* Connected but no property selected yet */
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Integrations</div>
+        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <svg width="20" height="20" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
+              <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.16C6.51 42.62 14.62 48 24 48z"/>
+              <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.16C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.55 10.75l7.98-6.16z"/>
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.55 13.25l7.98 6.16C12.43 13.72 17.74 9.5 24 9.5z"/>
+            </svg>
             <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-                <div>
-                  <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.15rem" }}>Google account connected</div>
-                  <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Select which GA4 property to link to this store.</div>
-                </div>
-                <StatusDot ok label="Connected" />
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.15rem" }}>
+                <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500 }}>Google Analytics 4</div>
+                <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#7c3aed", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "0.1rem 0.4rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Coming soon</span>
               </div>
-
-              {ga4Properties.length > 0 ? (
-                <ga4Fetcher.Form method="post" style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                  <input type="hidden" name="intent" value="ga4_save_property" />
-                  <select
-                    name="propertyId"
-                    value={selectedProperty}
-                    onChange={(e) => setSelectedProperty(e.target.value)}
-                    style={{ flex: 1, padding: "0.4rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#111", background: "#fff" }}
-                  >
-                    <option value="">Select a property…</option>
-                    {ga4Properties.map((p) => (
-                      <option key={p.id} value={p.id}>{p.displayName}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="hidden"
-                    name="propertyName"
-                    value={ga4Properties.find((p) => p.id === selectedProperty)?.displayName ?? ""}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!selectedProperty || ga4Fetcher.state !== "idle"}
-                    style={{ padding: "0.4rem 1rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: !selectedProperty ? "default" : "pointer", opacity: !selectedProperty ? 0.4 : 1 }}
-                  >
-                    Save
-                  </button>
-                </ga4Fetcher.Form>
-              ) : (
-                <div style={{ fontSize: "0.8125rem", color: "#aaa" }}>No GA4 properties found in this Google account.</div>
-              )}
-
-              <ga4Fetcher.Form method="post" style={{ marginTop: "0.75rem" }}>
-                <input type="hidden" name="intent" value="ga4_disconnect" />
-                <button type="submit" style={{ fontSize: "0.75rem", color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                  Disconnect
-                </button>
-              </ga4Fetcher.Form>
-            </div>
-          ) : (
-            /* Fully connected with property */
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                  <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500 }}>{ga4PropertyName ?? ga4PropertyId}</div>
-                  <StatusDot ok label="Connected" />
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>
-                  Experiment variants are sent to GA4 as a <code style={{ fontSize: "0.7rem", background: "#f5f5f5", padding: "0.1rem 0.3rem", borderRadius: 3 }}>split_test_variant</code> user property.
-                  Filter any GA4 report by this dimension to see per-variant data.
-                </div>
-                <a
-                  href={`https://analytics.google.com/analytics/web/#/${ga4PropertyId.replace("properties/", "p")}/reports`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: "inline-block", marginTop: "0.5rem", fontSize: "0.75rem", color: "#2563eb", textDecoration: "none" }}
-                >
-                  Open GA4 ↗
-                </a>
+              <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>
+                Connect your GA4 property to see experiment variants as a filterable dimension in every GA4 report.
               </div>
-              <ga4Fetcher.Form method="post">
-                <input type="hidden" name="intent" value="ga4_disconnect" />
-                <button type="submit" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}>
-                  Disconnect
-                </button>
-              </ga4Fetcher.Form>
             </div>
-          )}
+          </div>
+          <button
+            disabled
+            style={{ padding: "0.35rem 0.875rem", background: "#f5f5f5", color: "#bbb", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "default" }}
+          >
+            Connect
+          </button>
         </div>
       </section>
 
