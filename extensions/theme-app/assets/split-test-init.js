@@ -310,7 +310,28 @@
       });
     }
 
+    function applyContentVariants() {
+      var sectionTypes = { SECTION: 1, PAGE: 1, TEMPLATE: 1 };
+      for (var ci = 0; ci < exps.length; ci++) {
+        var eC = exps[ci];
+        if (!sectionTypes[eC.type]) continue;
+        var cVId = asgn[eC.id];
+        if (!cVId) continue;
+        var cVars = eC.variants || [], cV = null;
+        for (var cj = 0; cj < cVars.length; cj++) { if (cVars[cj].id === cVId) { cV = cVars[cj]; break; } }
+        var els = d.querySelectorAll('[data-spt-section="' + eC.id + '"]');
+        for (var cp = 0; cp < els.length; cp++) {
+          if (cV && cV.content) els[cp].innerHTML = cV.content;
+          els[cp].style.visibility = '';
+        }
+      }
+      // Reveal any unmatched containers (experiment not running, no assignment, etc.)
+      var all = d.querySelectorAll('[data-spt-section]');
+      for (var cq = 0; cq < all.length; cq++) { all[cq].style.visibility = ''; }
+    }
+
     function init() {
+      applyContentVariants();
       sendPageView();
       syncCart();
       confirmAssign();

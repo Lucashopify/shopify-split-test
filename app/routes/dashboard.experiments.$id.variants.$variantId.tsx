@@ -256,19 +256,19 @@ export default function VariantEditor() {
       {/* SECTION / PAGE / TEMPLATE */}
       {["SECTION", "PAGE", "TEMPLATE"].includes(type) && (
         <div style={card}>
-          <div style={cardTitle}>Custom Liquid</div>
+          <div style={cardTitle}>HTML content</div>
           <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
-            This Liquid code is injected into the variant wrapper block placed in the Theme Editor. Use the <strong>Variant Content</strong> app block to position it on the page.
+            Enter the HTML to show visitors in this variant. In Theme Editor, add the <strong>Variant Content</strong> app block to the section where you want the content to appear, and set its Experiment ID to <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>{experiment.id}</code>.
           </p>
-          <label style={label}>Liquid code</label>
+          <label style={label}>HTML content</label>
           <textarea
             style={{ ...input, minHeight: 220, resize: "vertical", fontFamily: "monospace", fontSize: "0.8125rem" }}
             value={customLiquid}
             onChange={(e) => setCustomLiquid(e.target.value)}
-            placeholder={"{% if product.available %}\n  <p>In stock — ships today!</p>\n{% endif %}"}
+            placeholder={"<p class=\"hero__subtitle\">Summer sale — up to 40% off</p>\n<a href=\"/collections/sale\" class=\"button\">Shop now</a>"}
           />
-          <div style={{ ...warnBanner, marginTop: "1rem" }}>
-            Liquid is rendered server-side. Test thoroughly in a preview before starting the experiment.
+          <div style={{ ...infoBanner, marginTop: "1rem" }}>
+            The Variant Content block stays hidden until the correct variant's HTML is injected — no content flash.
           </div>
         </div>
       )}
