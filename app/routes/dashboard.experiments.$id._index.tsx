@@ -2,6 +2,7 @@ import { data, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, 
 import { useState } from "react";
 import React from "react";
 import { Select } from "../components/Select";
+import { getPlanLimits } from "../lib/billing.server";
 import type { Prisma } from "@prisma/client";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -181,7 +182,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     visitorType: mergeDim(vtEvents, vtOrders),
   };
 
-  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs }, { headers: { "Set-Cookie": setCookie } });
+  const planLimits = await getPlanLimits(shop.id);
+  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -276,7 +278,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results", "History"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs, segmentsEnabled } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -426,29 +428,35 @@ export default function ExperimentDetail() {
           {/* Segment selector */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.75rem 0", borderBottom: "1px solid #f5f5f5" }}>
             <span style={{ width: 180, fontSize: "0.8125rem", color: "#999", flexShrink: 0, paddingTop: "0.25rem" }}>Segment</span>
-            <segmentFetcher.Form method="post" data-segment-form style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <input type="hidden" name="intent" value="update_segment" />
-              <Select
-                name="segmentId"
-                value={selectedSegmentId}
-                onChange={(v) => {
-                  setSelectedSegmentId(v);
-                  const form = document.querySelector<HTMLFormElement>("[data-segment-form]");
-                  if (form) { const fd = new FormData(form); fd.set("segmentId", v); segmentFetcher.submit(fd, { method: "post" }); }
-                }}
-                style={{ padding: "0.3rem 0.6rem", fontSize: "0.8125rem", minWidth: 200 }}
-                options={[{ value: "", label: "— No segment (all visitors) —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
-              />
-              {segments.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => navigate("/dashboard/segments/new")}
-                  style={{ fontSize: "0.75rem", color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                >
-                  + Create a segment
-                </button>
-              )}
-            </segmentFetcher.Form>
+            {segmentsEnabled ? (
+              <segmentFetcher.Form method="post" data-segment-form style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input type="hidden" name="intent" value="update_segment" />
+                <Select
+                  name="segmentId"
+                  value={selectedSegmentId}
+                  onChange={(v) => {
+                    setSelectedSegmentId(v);
+                    const form = document.querySelector<HTMLFormElement>("[data-segment-form]");
+                    if (form) { const fd = new FormData(form); fd.set("segmentId", v); segmentFetcher.submit(fd, { method: "post" }); }
+                  }}
+                  style={{ padding: "0.3rem 0.6rem", fontSize: "0.8125rem", minWidth: 200 }}
+                  options={[{ value: "", label: "— No segment (all visitors) —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
+                />
+                {segments.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/dashboard/segments/new")}
+                    style={{ fontSize: "0.75rem", color: "#2563eb", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  >
+                    + Create a segment
+                  </button>
+                )}
+              </segmentFetcher.Form>
+            ) : (
+              <span style={{ fontSize: "0.8125rem", color: "#aaa" }}>
+                Requires the <a href="/dashboard/billing" style={{ color: "#2563eb" }}>Growth plan</a>
+              </span>
+            )}
           </div>
 
           {/* Guardrails */}
