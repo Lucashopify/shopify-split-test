@@ -1,6 +1,7 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useActionData, useLoaderData, useNavigate, useSubmit } from "react-router";
 import { useState, useCallback } from "react";
+import { Select } from "../components/Select";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
@@ -224,16 +225,15 @@ export default function NewExperiment() {
       <div style={card}>
         <div style={cardTitle}>Test type</div>
         <label style={label}>What are you testing?</label>
-        <select style={input} value={type} onChange={(e) => setType(e.target.value)}>
-          {EXPERIMENT_TYPES.map((t) => {
+        <Select
+          style={input}
+          value={type}
+          onChange={setType}
+          options={EXPERIMENT_TYPES.map((t) => {
             const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
-            return (
-              <option key={t.value} value={t.value} disabled={!!locked}>
-                {locked ? `🔒 ${t.label} — Starter plan required` : t.label}
-              </option>
-            );
+            return { value: t.value, label: locked ? `🔒 ${t.label} — Starter plan required` : t.label, disabled: !!locked };
           })}
-        </select>
+        />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
           <p style={{ ...helpText, color: "#dc2626", marginTop: "0.5rem" }}>
             This test type requires a paid plan. <a href="/dashboard/billing" style={{ color: "#dc2626" }}>Upgrade →</a>
@@ -261,9 +261,7 @@ export default function NewExperiment() {
               The control uses your live theme. Select the theme to test for {variantName || "Variant B"}.
             </p>
             <label style={label}>{variantName || "Variant B"} theme</label>
-            <select style={input} value={variantThemeId} onChange={(e) => setVariantThemeId(e.target.value)}>
-              {themeOptions.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <Select style={input} value={variantThemeId} onChange={setVariantThemeId} options={themeOptions} />
           </div>
         )}
 
@@ -279,10 +277,15 @@ export default function NewExperiment() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div>
               <label style={label}>Adjustment type</label>
-              <select style={input} value={variantPriceAdjType} onChange={(e) => setVariantPriceAdjType(e.target.value)}>
-                <option value="percent">Percentage discount (%)</option>
-                <option value="fixed">Fixed price ($)</option>
-              </select>
+              <Select
+                style={input}
+                value={variantPriceAdjType}
+                onChange={setVariantPriceAdjType}
+                options={[
+                  { value: "percent", label: "Percentage discount (%)" },
+                  { value: "fixed", label: "Fixed price ($)" },
+                ]}
+              />
             </div>
             <div>
               <label style={label}>{variantPriceAdjType === "percent" ? "Discount (%)" : "Fixed price ($)"}</label>
@@ -311,24 +314,30 @@ export default function NewExperiment() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
                   <label style={label}>Template type</label>
-                  <select style={input} value={templateType} onChange={(e) => { setTemplateType(e.target.value); setVariantViewName(""); }}>
-                    <option value="product">Product</option>
-                    <option value="collection">Collection</option>
-                    <option value="page">Page</option>
-                    <option value="index">Homepage</option>
-                    <option value="blog">Blog</option>
-                    <option value="article">Article</option>
-                  </select>
+                  <Select
+                    style={input}
+                    value={templateType}
+                    onChange={(v) => { setTemplateType(v); setVariantViewName(""); }}
+                    options={[
+                      { value: "product", label: "Product" },
+                      { value: "collection", label: "Collection" },
+                      { value: "page", label: "Page" },
+                      { value: "index", label: "Homepage" },
+                      { value: "blog", label: "Blog" },
+                      { value: "article", label: "Article" },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={label}>{variantName || "Variant B"} template</label>
                   {filtered.length > 0 ? (
-                    <select style={input} value={variantViewName} onChange={(e) => setVariantViewName(e.target.value)}>
-                      <option value="">— Select alternate template —</option>
-                      {filtered.map((f) => (
-                        <option key={f.view} value={f.view}>{f.filename}</option>
-                      ))}
-                    </select>
+                    <Select
+                      style={input}
+                      value={variantViewName}
+                      onChange={setVariantViewName}
+                      placeholder="— Select alternate template —"
+                      options={filtered.map((f) => ({ value: f.view, label: f.filename }))}
+                    />
                   ) : (
                     <div style={{ padding: "0.5rem 0.75rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.8125rem", color: "#92400e" }}>
                       No alternate {templateType} templates found. Duplicate <code style={{ background: "#fde68a55", padding: "0 0.2rem", borderRadius: 2 }}>templates/{templateType}.json</code> in your theme first.
@@ -367,10 +376,12 @@ export default function NewExperiment() {
               Audience segments require the <a href="/dashboard/billing" style={{ color: "#2563eb" }}>Growth plan</a>.
             </div>
           ) : (
-            <select style={input} value={segmentId} onChange={(e) => setSegmentId(e.target.value)}>
-              <option value="">— All visitors —</option>
-              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <Select
+              style={input}
+              value={segmentId}
+              onChange={setSegmentId}
+              options={[{ value: "", label: "— All visitors —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
+            />
           )}
           <p style={helpText}>Only show this experiment to visitors matching a segment.</p>
         </div>

@@ -1,5 +1,6 @@
 import { Form, data, redirect, useActionData, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState, useCallback } from "react";
+import { Select } from "../components/Select";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 
@@ -185,14 +186,12 @@ export default function NewSegmentPage() {
         <div style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#555" }}>Match</span>
-            <select
+            <Select
               value={combinator}
-              onChange={(e) => setCombinator(e.target.value as "AND" | "OR")}
+              onChange={(v) => setCombinator(v as "AND" | "OR")}
               style={{ ...selectStyle, width: 80 }}
-            >
-              <option value="AND">ALL</option>
-              <option value="OR">ANY</option>
-            </select>
+              options={[{ value: "AND", label: "ALL" }, { value: "OR", label: "ANY" }]}
+            />
             <span style={{ fontSize: "0.8125rem", color: "#999" }}>of the following conditions</span>
           </div>
 
@@ -207,38 +206,29 @@ export default function NewSegmentPage() {
                   <span style={{ fontSize: "0.7rem", color: "#ccc", width: 16, flexShrink: 0, textAlign: "center" }}>{i + 1}</span>
 
                   {/* Field */}
-                  <select
+                  <Select
                     value={rule.field}
-                    onChange={(e) => updateRule(rule.id, { field: e.target.value as RuleField })}
+                    onChange={(v) => updateRule(rule.id, { field: v as RuleField })}
                     style={{ ...selectStyle, flex: "0 0 160px" }}
-                  >
-                    {FIELDS.map((f) => (
-                      <option key={f.value} value={f.value}>{f.label}</option>
-                    ))}
-                  </select>
+                    options={FIELDS.map((f) => ({ value: f.value, label: f.label }))}
+                  />
 
                   {/* Operator */}
-                  <select
+                  <Select
                     value={rule.op}
-                    onChange={(e) => updateRule(rule.id, { op: e.target.value as RuleOp })}
+                    onChange={(v) => updateRule(rule.id, { op: v as RuleOp })}
                     style={{ ...selectStyle, flex: "0 0 110px" }}
-                  >
-                    {ops.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
+                    options={ops.map((o) => ({ value: o.value, label: o.label }))}
+                  />
 
                   {/* Value */}
                   {meta.type === "select" ? (
-                    <select
+                    <Select
                       value={rule.value}
-                      onChange={(e) => updateRule(rule.id, { value: e.target.value })}
+                      onChange={(v) => updateRule(rule.id, { value: v })}
                       style={{ ...selectStyle, flex: 1 }}
-                    >
-                      {(meta.options ?? []).map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+                      options={(meta.options ?? []).map((opt) => ({ value: opt, label: opt }))}
+                    />
                   ) : (
                     <input
                       type="text"

@@ -1,6 +1,7 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate, useSubmit } from "react-router";
 import { useState, useCallback } from "react";
+import { Select } from "../components/Select";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
@@ -215,9 +216,7 @@ export default function VariantEditor() {
                 Select the unpublished theme visitors in this variant will see. Duplicate your live theme first in the Shopify Theme Editor, then make your changes before selecting it here.
               </p>
               <label style={label}>Variant theme</label>
-              <select style={input} value={themeId} onChange={(e) => setThemeId(e.target.value)}>
-                {themeOptions.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              <Select style={input} value={themeId} onChange={setThemeId} options={themeOptions} />
               {themeId && (
                 <p style={{ ...helpText, marginTop: "0.5rem" }}>
                   Selected: {themes.find((t) => t.id === themeId)?.name ?? themeId}
@@ -254,10 +253,15 @@ export default function VariantEditor() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div>
                 <label style={label}>Adjustment type</label>
-                <select style={input} value={priceAdjType} onChange={(e) => setPriceAdjType(e.target.value)}>
-                  <option value="percent">Percentage discount (%)</option>
-                  <option value="fixed">Fixed price ($)</option>
-                </select>
+                <Select
+                  style={input}
+                  value={priceAdjType}
+                  onChange={setPriceAdjType}
+                  options={[
+                    { value: "percent", label: "Percentage discount (%)" },
+                    { value: "fixed", label: "Fixed price ($)" },
+                  ]}
+                />
               </div>
               <div>
                 <label style={label}>{priceAdjType === "percent" ? "Discount (%)" : "Fixed price ($)"}</label>
@@ -300,12 +304,13 @@ export default function VariantEditor() {
             ) : filtered.length > 0 ? (
               <>
                 <label style={label}>Select template</label>
-                <select style={input} value={redirectUrl} onChange={(e) => setRedirectUrl(e.target.value)}>
-                  <option value="">— Select alternate template —</option>
-                  {filtered.map((f) => (
-                    <option key={f.view} value={f.view}>{f.filename}</option>
-                  ))}
-                </select>
+                <Select
+                  style={input}
+                  value={redirectUrl}
+                  onChange={setRedirectUrl}
+                  placeholder="— Select alternate template —"
+                  options={filtered.map((f) => ({ value: f.view, label: f.filename }))}
+                />
                 {redirectUrl && (
                   <p style={{ ...helpText, marginTop: "0.5rem" }}>
                     Variant visitors will load: <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view={redirectUrl}</code>

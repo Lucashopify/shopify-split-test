@@ -1,6 +1,7 @@
 import { data, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState } from "react";
 import React from "react";
+import { Select } from "../components/Select";
 import type { Prisma } from "@prisma/client";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -282,6 +283,8 @@ export default function ExperimentDetail() {
   const guardrailFetcher = useFetcher();
   const rollupFetcher = useFetcher();
   const [tab, setTab] = useState(0);
+  const [selectedSegmentId, setSelectedSegmentId] = useState(experiment.segment?.id ?? "");
+  const [runtimeDaysSetting, setRuntimeDaysSetting] = useState(String(experiment.minimumRuntimeDays ?? 7));
 
   const status = experiment.status as ExperimentStatus;
   const type = experiment.type as ExperimentType;
@@ -423,19 +426,19 @@ export default function ExperimentDetail() {
           {/* Segment selector */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "0.75rem 0", borderBottom: "1px solid #f5f5f5" }}>
             <span style={{ width: 180, fontSize: "0.8125rem", color: "#999", flexShrink: 0, paddingTop: "0.25rem" }}>Segment</span>
-            <segmentFetcher.Form method="post" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <segmentFetcher.Form method="post" data-segment-form style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <input type="hidden" name="intent" value="update_segment" />
-              <select
+              <Select
                 name="segmentId"
-                defaultValue={experiment.segment?.id ?? ""}
-                onChange={(e) => segmentFetcher.submit(e.currentTarget.form!)}
-                style={{ padding: "0.3rem 0.6rem", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#111", background: "#fff", cursor: "pointer" }}
-              >
-                <option value="">— No segment (all visitors) —</option>
-                {segments.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                value={selectedSegmentId}
+                onChange={(v) => {
+                  setSelectedSegmentId(v);
+                  const form = document.querySelector<HTMLFormElement>("[data-segment-form]");
+                  if (form) { const fd = new FormData(form); fd.set("segmentId", v); segmentFetcher.submit(fd, { method: "post" }); }
+                }}
+                style={{ padding: "0.3rem 0.6rem", fontSize: "0.8125rem", minWidth: 200 }}
+                options={[{ value: "", label: "— No segment (all visitors) —" }, ...segments.map((s) => ({ value: s.id, label: s.name }))]}
+              />
               {segments.length === 0 && (
                 <button
                   type="button"
@@ -492,22 +495,20 @@ export default function ExperimentDetail() {
                       Show a warning when trying to stop the experiment before this many days. Prevents peeking bias and ensures at least one full day-of-week cycle.
                     </div>
                   </div>
-                  <select
-                    defaultValue={String(experiment.minimumRuntimeDays ?? 7)}
-                    onChange={(e) => {
+                  <Select
+                    value={runtimeDaysSetting}
+                    onChange={(v) => {
+                      setRuntimeDaysSetting(v);
                       const form = document.querySelector<HTMLFormElement>("[data-guardrail-form]");
                       if (form) {
                         const fd = new FormData(form);
-                        fd.set("minimumRuntimeDays", e.target.value);
+                        fd.set("minimumRuntimeDays", v);
                         guardrailFetcher.submit(fd, { method: "post" });
                       }
                     }}
-                    style={{ padding: "0.3rem 0.6rem", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#111", background: "#fff", cursor: "pointer", flexShrink: 0 }}
-                  >
-                    {[3, 5, 7, 14, 21].map((d) => (
-                      <option key={d} value={String(d)}>{d} days</option>
-                    ))}
-                  </select>
+                    style={{ padding: "0.3rem 0.6rem", fontSize: "0.8125rem", flexShrink: 0, minWidth: 100 }}
+                    options={[3, 5, 7, 14, 21].map((d) => ({ value: String(d), label: `${d} days` }))}
+                  />
                 </div>
               </guardrailFetcher.Form>
             </div>
