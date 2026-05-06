@@ -195,8 +195,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const { data: gqlData } = await resp.json();
       const result = gqlData?.appSubscriptionCreate;
 
+      console.log("[billing] appSubscriptionCreate result:", JSON.stringify(result));
+
       if (result?.userErrors?.length) {
         const msg = result.userErrors.map((e: { message: string }) => e.message).join(", ");
+        console.error("[billing] userErrors:", msg);
         return data({ error: msg }, { headers: { "Set-Cookie": setCookie } });
       }
 
