@@ -10,8 +10,8 @@ const PLAN_CONFIG = {
     id: "starter",
     name: "Starter",
     shopifyName: "Starter — Split Tester",
-    price: 29.0,
-    visitorCap: 100_000,
+    price: 79.0,
+    visitorCap: 20_000,
     experimentsLabel: "10 running",
     trialDays: 14,
     features: ["All test types", "Full analytics", "Audience segments"],
@@ -21,8 +21,8 @@ const PLAN_CONFIG = {
     id: "growth",
     name: "Growth",
     shopifyName: "Growth — Split Tester",
-    price: 79.0,
-    visitorCap: 500_000,
+    price: 299.0,
+    visitorCap: 100_000,
     experimentsLabel: "Unlimited",
     trialDays: 14,
     features: ["Everything in Starter", "Lift Assist AI", "Priority support"],
@@ -32,8 +32,8 @@ const PLAN_CONFIG = {
     id: "scale",
     name: "Scale",
     shopifyName: "Scale — Split Tester",
-    price: 199.0,
-    visitorCap: 2_000_000,
+    price: 749.0,
+    visitorCap: 500_000,
     experimentsLabel: "Unlimited",
     trialDays: 14,
     features: ["Everything in Growth", "SRM detection", "Dedicated onboarding"],
@@ -127,7 +127,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     trialEndsAt: plan?.trialEndsAt?.toISOString() ?? null,
     currentPeriodEnd: plan?.currentPeriodEnd?.toISOString() ?? null,
     status: plan?.status ?? "active",
-    monthlyVisitorCap: plan?.monthlyVisitorCap ?? 50_000,
+    monthlyVisitorCap: plan?.monthlyVisitorCap ?? 10_000,
     liftAssistEnabled: plan?.liftAssistEnabled ?? false,
     visitorCount,
   }, { headers: { "Set-Cookie": setCookie } });
@@ -317,7 +317,7 @@ export default function BillingPage() {
         <div style={{ marginBottom: "2rem", padding: "1rem 1.25rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 }}>
           <div style={{ fontSize: "0.8125rem", color: "#92400e", fontWeight: 600, marginBottom: "0.2rem" }}>Free plan limits</div>
           <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: 0, lineHeight: 1.5 }}>
-            50,000 visitors/month · 3 running experiments · Theme and URL redirect tests only.
+            10,000 visitors/month · 3 running experiments · Theme and URL redirect tests only.
             Upgrade to unlock all test types, unlimited experiments, and higher traffic limits.
           </p>
         </div>
