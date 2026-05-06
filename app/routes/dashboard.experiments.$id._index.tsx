@@ -1,5 +1,6 @@
 import { data, useFetcher, useLoaderData, useNavigate, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useState } from "react";
+import React from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { syncConfigToMetafield } from "../lib/experiments/config.server";
@@ -74,7 +75,103 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     _sum: { revenue: true },
   });
 
-  return data({ experiment, segments, resultRows, liveOrders, funnel }, { headers: { "Set-Cookie": setCookie } });
+  // Segment-level breakdown queries (device / traffic source / visitor type)
+  const toN = (v: unknown) => Number(v ?? 0);
+  function mergeDim(
+    events: Array<{ variantId: string; dim: string; sessions: unknown; atc: unknown; checkout: unknown }>,
+    orders: Array<{ variantId: string; dim: string; orders: unknown; revenue: unknown }>,
+  ) {
+    const map = new Map<string, { variantId: string; dim: string; sessions: number; atc: number; checkout: number; orders: number; revenue: number }>();
+    for (const r of events) {
+      const key = `${r.variantId}::${r.dim}`;
+      map.set(key, { variantId: r.variantId, dim: r.dim, sessions: toN(r.sessions), atc: toN(r.atc), checkout: toN(r.checkout), orders: 0, revenue: 0 });
+    }
+    for (const r of orders) {
+      const key = `${r.variantId}::${r.dim}`;
+      const existing = map.get(key);
+      if (existing) { existing.orders = toN(r.orders); existing.revenue = toN(r.revenue); }
+      else map.set(key, { variantId: r.variantId, dim: r.dim, sessions: 0, atc: 0, checkout: 0, orders: toN(r.orders), revenue: toN(r.revenue) });
+    }
+    return [...map.values()];
+  }
+
+  const [deviceEvents, deviceOrders, sourceEvents, sourceOrders, vtEvents, vtOrders] = await Promise.all([
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; sessions: unknown; atc: unknown; checkout: unknown }>>`
+      SELECT e."variantId", COALESCE(v.device, 'unknown') as dim,
+        COUNT(CASE WHEN e.type = 'PAGE_VIEW' THEN 1 END) as sessions,
+        COUNT(CASE WHEN e.type = 'ADD_TO_CART' THEN 1 END) as atc,
+        COUNT(CASE WHEN e.type = 'INITIATE_CHECKOUT' THEN 1 END) as checkout
+      FROM "Event" e JOIN "Visitor" v ON e."visitorId" = v.id
+      WHERE e."experimentId" = ${experiment.id}
+      GROUP BY e."variantId", v.device`,
+
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; orders: unknown; revenue: unknown }>>`
+      SELECT o."variantId", COALESCE(v.device, 'unknown') as dim,
+        COUNT(*) as orders, COALESCE(SUM(o.revenue), 0) as revenue
+      FROM "Order" o JOIN "Visitor" v ON o."visitorId" = v.id
+      WHERE o."experimentId" = ${experiment.id}
+      GROUP BY o."variantId", v.device`,
+
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; sessions: unknown; atc: unknown; checkout: unknown }>>`
+      SELECT sub."variantId", sub.source as dim,
+        COUNT(CASE WHEN sub.type = 'PAGE_VIEW' THEN 1 END) as sessions,
+        COUNT(CASE WHEN sub.type = 'ADD_TO_CART' THEN 1 END) as atc,
+        COUNT(CASE WHEN sub.type = 'INITIATE_CHECKOUT' THEN 1 END) as checkout
+      FROM (
+        SELECT e."variantId", e.type,
+          CASE
+            WHEN lower(v."utmMedium") IN ('cpc','ppc','paid','paidsearch','paid_search') THEN 'paid'
+            WHEN lower(v."utmMedium") IN ('email','newsletter') OR lower(v."utmSource") = 'email' THEN 'email'
+            WHEN lower(v."utmMedium") IN ('social','social-media') OR lower(v."utmSource") IN ('instagram','facebook','twitter','tiktok','pinterest','youtube','linkedin') THEN 'social'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'organic'
+            ELSE 'direct'
+          END as source
+        FROM "Event" e JOIN "Visitor" v ON e."visitorId" = v.id
+        WHERE e."experimentId" = ${experiment.id}
+      ) sub
+      GROUP BY sub."variantId", sub.source`,
+
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; orders: unknown; revenue: unknown }>>`
+      SELECT sub."variantId", sub.source as dim,
+        COUNT(*) as orders, COALESCE(SUM(sub.revenue), 0) as revenue
+      FROM (
+        SELECT o."variantId", o.revenue,
+          CASE
+            WHEN lower(v."utmMedium") IN ('cpc','ppc','paid','paidsearch','paid_search') THEN 'paid'
+            WHEN lower(v."utmMedium") IN ('email','newsletter') OR lower(v."utmSource") = 'email' THEN 'email'
+            WHEN lower(v."utmMedium") IN ('social','social-media') OR lower(v."utmSource") IN ('instagram','facebook','twitter','tiktok','pinterest','youtube','linkedin') THEN 'social'
+            WHEN (v."utmSource" IS NULL OR v."utmSource" = '') AND v.referrer IS NOT NULL AND v.referrer <> '' THEN 'organic'
+            ELSE 'direct'
+          END as source
+        FROM "Order" o JOIN "Visitor" v ON o."visitorId" = v.id
+        WHERE o."experimentId" = ${experiment.id}
+      ) sub
+      GROUP BY sub."variantId", sub.source`,
+
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; sessions: unknown; atc: unknown; checkout: unknown }>>`
+      SELECT e."variantId", COALESCE(v."customerType", 'unknown') as dim,
+        COUNT(CASE WHEN e.type = 'PAGE_VIEW' THEN 1 END) as sessions,
+        COUNT(CASE WHEN e.type = 'ADD_TO_CART' THEN 1 END) as atc,
+        COUNT(CASE WHEN e.type = 'INITIATE_CHECKOUT' THEN 1 END) as checkout
+      FROM "Event" e JOIN "Visitor" v ON e."visitorId" = v.id
+      WHERE e."experimentId" = ${experiment.id}
+      GROUP BY e."variantId", v."customerType"`,
+
+    prisma.$queryRaw<Array<{ variantId: string; dim: string; orders: unknown; revenue: unknown }>>`
+      SELECT o."variantId", COALESCE(v."customerType", 'unknown') as dim,
+        COUNT(*) as orders, COALESCE(SUM(o.revenue), 0) as revenue
+      FROM "Order" o JOIN "Visitor" v ON o."visitorId" = v.id
+      WHERE o."experimentId" = ${experiment.id}
+      GROUP BY o."variantId", v."customerType"`,
+  ]);
+
+  const breakdown = {
+    device: mergeDim(deviceEvents, deviceOrders),
+    source: mergeDim(sourceEvents, sourceOrders),
+    visitorType: mergeDim(vtEvents, vtOrders),
+  };
+
+  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -159,7 +256,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders, funnel } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel, breakdown } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -465,6 +562,8 @@ export default function ExperimentDetail() {
               variants={experiment.variants}
               resultRows={resultRows}
               liveOrders={liveOrders}
+              startAt={experiment.startAt ? String(experiment.startAt) : null}
+              breakdown={breakdown}
             />
           )}
         </div>
@@ -477,10 +576,12 @@ function ConclusionBanner({
   pValue,
   srmFlagged,
   rows,
+  startAt,
 }: {
   pValue: number | null;
   srmFlagged: boolean;
-  rows: Array<{ v: VariantStub; sessions: number; orders: number; cvr: number | null; liftPct: number | null }>;
+  rows: Array<{ v: VariantStub; sessions: number; orders: number; revenue: number; cvr: number | null; liftPct: number | null }>;
+  startAt: string | null;
 }) {
   if (srmFlagged) return null; // SRM banner already shown above
 
@@ -505,6 +606,43 @@ function ConclusionBanner({
 
   if (significant && winner) {
     const lift = winner.liftPct != null ? `${winner.liftPct > 0 ? "+" : ""}${(winner.liftPct * 100).toFixed(1)}%` : "";
+
+    // Revenue impact projection
+    const durationDays = startAt ? (Date.now() - new Date(startAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
+    let projection: React.ReactNode = null;
+    if (durationDays >= 1 && control && control.revenue > 0 && winner.liftPct != null) {
+      const controlRevPerDay = control.revenue / durationDays;
+      const annualUplift = controlRevPerDay * 365 * winner.liftPct;
+      const monthlyUplift = controlRevPerDay * 30 * winner.liftPct;
+      const fmtK = (n: number) =>
+        Math.abs(n) >= 1000
+          ? `$${(n / 1000).toFixed(1)}k`
+          : `$${Math.round(n).toLocaleString()}`;
+      projection = (
+        <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #bbf7d0", display: "flex", alignItems: "flex-end", gap: "2rem" }}>
+          <div>
+            <div style={{ fontSize: "0.68rem", color: "#15803d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.2rem" }}>
+              Est. annual revenue impact
+            </div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#111", letterSpacing: "-0.03em", lineHeight: 1 }}>
+              +{fmtK(annualUplift)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.68rem", color: "#15803d", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.2rem" }}>
+              Per month
+            </div>
+            <div style={{ fontSize: "1rem", fontWeight: 600, color: "#555", letterSpacing: "-0.02em", lineHeight: 1 }}>
+              +{fmtK(monthlyUplift)}
+            </div>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#6b7280", maxWidth: 200, lineHeight: 1.4, paddingBottom: "0.1rem" }}>
+            Based on control revenue rate over {Math.round(durationDays)} days, extrapolated with {lift} lift.
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8 }}>
         <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#166534", marginBottom: "0.3rem" }}>
@@ -514,6 +652,7 @@ function ConclusionBanner({
           <strong>{winner.v.name}</strong> is the winner with {lift} lift over {control?.v.name ?? "control"}.
           {" "}You can now ship this variant or end the test.
         </div>
+        {projection}
       </div>
     );
   }
@@ -642,14 +781,130 @@ type LiveOrder = {
 
 type VariantStub = { id: string; name: string; isControl: boolean };
 
+type BreakdownRow = { variantId: string; dim: string; sessions: number; atc: number; checkout: number; orders: number; revenue: number };
+type Breakdown = { device: BreakdownRow[]; source: BreakdownRow[]; visitorType: BreakdownRow[] };
+
+function BreakdownSection({ variants, breakdown }: { variants: VariantStub[]; breakdown: Breakdown }) {
+  const [dim, setDim] = React.useState<"device" | "source" | "visitorType">("device");
+  const rows = breakdown[dim];
+  const dimValues = [...new Set(rows.map((r) => r.dim))].sort();
+  if (dimValues.length === 0) return null;
+
+  const DIM_LABELS: Record<string, string> = {
+    device: "Device", source: "Traffic source", visitorType: "Visitor type",
+  };
+  const VALUE_LABELS: Record<string, string> = {
+    mobile: "Mobile", tablet: "Tablet", desktop: "Desktop", unknown: "Unknown",
+    paid: "Paid", organic: "Organic", direct: "Direct", social: "Social", email: "Email", referral: "Referral",
+    new: "New", returning: "Returning",
+  };
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "0.3rem 0.75rem", fontSize: "0.75rem", border: "1px solid #e9e9e9",
+    borderRadius: 6, cursor: "pointer", background: active ? "#111" : "#fff",
+    color: active ? "#fff" : "#555", fontWeight: active ? 500 : 400,
+  });
+
+  const thS: React.CSSProperties = { textAlign: "left", fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.05em", padding: "0.5rem 0.75rem", fontWeight: 500, borderBottom: "1px solid #e9e9e9", whiteSpace: "nowrap" };
+  const tdS: React.CSSProperties = { padding: "0.6rem 0.75rem", fontSize: "0.8125rem", color: "#111", borderBottom: "1px solid #f3f3f3" };
+  const tdNS: React.CSSProperties = { ...tdS, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+
+  const fmtCvr = (orders: number, sessions: number) =>
+    sessions > 0 ? `${((orders / sessions) * 100).toFixed(2)}%` : "—";
+  const fmtRev = (r: number) => r > 0 ? `$${r.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+
+  // Compute control CVR per dim value for lift
+  const controlId = variants.find((v) => v.isControl)?.id;
+  const controlByDim = new Map<string, BreakdownRow>();
+  if (controlId) {
+    for (const r of rows) {
+      if (r.variantId === controlId) controlByDim.set(r.dim, r);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: "2rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          Breakdown
+        </div>
+        <div style={{ display: "flex", gap: "0.375rem" }}>
+          {(["device", "source", "visitorType"] as const).map((d) => (
+            <button key={d} style={btnStyle(dim === d)} onClick={() => setDim(d)}>
+              {DIM_LABELS[d]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ overflowX: "auto", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#fafafa" }}>
+              <th style={thS}>{DIM_LABELS[dim]}</th>
+              {variants.map((v) => (
+                <React.Fragment key={v.id}>
+                  <th style={{ ...thS, textAlign: "right" }}>{v.name} sessions</th>
+                  <th style={{ ...thS, textAlign: "right" }}>{v.name} CVR</th>
+                  <th style={{ ...thS, textAlign: "right" }}>{v.name} revenue</th>
+                  {!v.isControl && <th style={{ ...thS, textAlign: "right" }}>vs control</th>}
+                </React.Fragment>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dimValues.map((dv) => {
+              const ctrl = controlByDim.get(dv);
+              const ctrlCvr = ctrl && ctrl.sessions > 0 ? ctrl.orders / ctrl.sessions : null;
+              return (
+                <tr key={dv}>
+                  <td style={{ ...tdS, fontWeight: 500 }}>{VALUE_LABELS[dv] ?? dv}</td>
+                  {variants.map((v) => {
+                    const r = rows.find((x) => x.variantId === v.id && x.dim === dv);
+                    const sessions = r?.sessions ?? 0;
+                    const orders = r?.orders ?? 0;
+                    const revenue = r?.revenue ?? 0;
+                    const varCvr = sessions > 0 ? orders / sessions : null;
+                    const lift = !v.isControl && ctrlCvr != null && varCvr != null && ctrlCvr > 0
+                      ? ((varCvr - ctrlCvr) / ctrlCvr)
+                      : null;
+                    return (
+                      <React.Fragment key={v.id}>
+                        <td style={tdNS}>{sessions.toLocaleString()}</td>
+                        <td style={tdNS}>{fmtCvr(orders, sessions)}</td>
+                        <td style={tdNS}>{fmtRev(revenue)}</td>
+                        {!v.isControl && (
+                          <td style={{ ...tdNS, color: lift == null ? "#999" : lift > 0 ? "#16a34a" : lift < 0 ? "#dc2626" : "#111" }}>
+                            {lift == null ? "—" : `${lift > 0 ? "+" : ""}${(lift * 100).toFixed(1)}%`}
+                          </td>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize: "0.7rem", color: "#bbb", margin: "0.375rem 0 0" }}>
+        CVR and lift computed per segment. Revenue is order revenue attributed to visitors in that segment.
+      </p>
+    </div>
+  );
+}
+
 function ResultsTable({
   variants,
   resultRows,
   liveOrders,
+  startAt,
+  breakdown,
 }: {
   variants: VariantStub[];
   resultRows: ResultRow[];
   liveOrders: LiveOrder[];
+  startAt: string | null;
+  breakdown: Breakdown;
 }) {
   const srmFlagged = resultRows.some((r) => (r._max.srmPValue ?? 1) < 0.01);
   const pValue = resultRows.find((r) => r._max.pValue != null)?._max.pValue ?? null;
@@ -688,7 +943,7 @@ function ResultsTable({
           ⚠ <strong>Sample Ratio Mismatch</strong> — visitor allocation is significantly off from target weights. Results cannot be trusted until this is resolved.
         </div>
       )}
-      <ConclusionBanner pValue={pValue} srmFlagged={srmFlagged} rows={rows} />
+      <ConclusionBanner pValue={pValue} srmFlagged={srmFlagged} rows={rows} startAt={startAt} />
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
           <thead>
@@ -733,6 +988,7 @@ function ResultsTable({
       <p style={{ fontSize: "0.7rem", color: "#bbb", margin: "0.5rem 0 0" }}>
         Cumulative totals across all rollup windows. Click ↻ Refresh results to include the latest data.
       </p>
+      <BreakdownSection variants={variants} breakdown={breakdown} />
     </div>
   );
 }

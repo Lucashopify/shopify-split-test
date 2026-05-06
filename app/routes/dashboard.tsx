@@ -11,7 +11,6 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Experiments", href: "/dashboard/experiments" },
   { label: "Segments", href: "/dashboard/segments" },
-  { label: "Settings", href: "/dashboard/settings" },
   { label: "Billing", href: "/dashboard/billing" },
   { label: "Get started", href: "/dashboard/onboarding" },
 ];
@@ -156,6 +155,17 @@ export default function DashboardLayout() {
         </nav>
 
         <div style={S.footer}>
+          <NavLink to="/dashboard/settings" style={({ isActive }) => ({ ...S.footerLink, color: isActive ? "#111" : "#aaaaaa", marginBottom: "0.375rem" })}>
+            <span>Settings</span>
+          </NavLink>
+          <a
+            href="https://docs.splittester.com"
+            target="_blank"
+            rel="noreferrer"
+            style={{ ...S.footerLink, marginBottom: "0.375rem" }}
+          >
+            <span>Help</span>
+          </a>
           <a
             href={`https://${shop}/admin/apps`}
             target="_blank"

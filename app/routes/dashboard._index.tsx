@@ -1,4 +1,5 @@
-import { data, useLoaderData, useNavigate, type LoaderFunctionArgs } from "react-router";
+import { data, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from "react-router";
+import { useState, useRef, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 
@@ -19,7 +20,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   const shopId = shop?.id ?? "";
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const url = new URL(request.url);
+  const range = Math.min(90, Math.max(7, parseInt(url.searchParams.get("range") ?? "7", 10)));
+  const rangeStart = new Date(Date.now() - range * 24 * 60 * 60 * 1000);
 
   const [
     activeCount,
@@ -40,13 +43,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }),
     shopId
       ? prisma.event.findMany({
-          where: { shopId, occurredAt: { gte: sevenDaysAgo } },
+          where: { shopId, occurredAt: { gte: rangeStart } },
           select: { occurredAt: true, type: true },
         })
       : Promise.resolve([]),
     shopId
       ? prisma.order.findMany({
-          where: { shopId, processedAt: { gte: sevenDaysAgo } },
+          where: { shopId, processedAt: { gte: rangeStart } },
           select: { processedAt: true, revenue: true },
         })
       : Promise.resolve([]),
@@ -60,32 +63,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopId
       ? prisma.event.groupBy({
           by: ["type"],
-          where: { shopId, occurredAt: { gte: sevenDaysAgo } },
+          where: { shopId, occurredAt: { gte: rangeStart } },
           _count: { id: true },
         })
       : Promise.resolve([]),
   ]);
 
-  // 7-day event sparkline
+  // Event sparkline
   const dayMap: Record<string, number> = {};
   for (const ev of recentEvents) {
     const key = new Date(ev.occurredAt).toISOString().slice(0, 10);
     dayMap[key] = (dayMap[key] ?? 0) + 1;
   }
-  const eventSparkline = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000);
+  const eventSparkline = Array.from({ length: range }, (_, i) => {
+    const d = new Date(Date.now() - (range - 1 - i) * 24 * 60 * 60 * 1000);
     const key = d.toISOString().slice(0, 10);
     return { date: key, count: dayMap[key] ?? 0 };
   });
 
-  // 7-day revenue sparkline
+  // Revenue sparkline
   const revMap: Record<string, number> = {};
   for (const o of recentOrders) {
     const key = new Date(o.processedAt).toISOString().slice(0, 10);
     revMap[key] = (revMap[key] ?? 0) + (o.revenue ?? 0);
   }
-  const revenueSparkline = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000);
+  const revenueSparkline = Array.from({ length: range }, (_, i) => {
+    const d = new Date(Date.now() - (range - 1 - i) * 24 * 60 * 60 * 1000);
     const key = d.toISOString().slice(0, 10);
     return { date: key, revenue: revMap[key] ?? 0 };
   });
@@ -109,11 +112,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const checkoutCount = eventsByType.find((e) => e.type === "INITIATE_CHECKOUT")?.count ?? 0;
   // Purchases come from the Order table (set by orders/paid webhook), not Event rows
   const purchaseCount = shopId
-    ? await prisma.order.count({ where: { shopId, processedAt: { gte: sevenDaysAgo } } })
+    ? await prisma.order.count({ where: { shopId, processedAt: { gte: rangeStart } } })
     : 0;
 
   return data({
     shopDomain,
+    range,
     activeExperiments: activeCount,
     totalExperiments: totalCount,
     visitorsTested: visitorCount,
@@ -280,9 +284,19 @@ function StatusDonut({ slices }: { slices: { status: string; count: number }[] }
   );
 }
 
-function LineChart({ points, color = "#111" }: { points: { date: string; value: number }[]; color?: string }) {
+function LineChart({
+  points,
+  color = "#111",
+  valueFormatter,
+}: {
+  points: { date: string; value: number }[];
+  color?: string;
+  valueFormatter?: (v: number) => string;
+}) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const max = Math.max(...points.map((p) => p.value), 1);
-  const W = 320, H = 64, PAD = 4;
+  const W = 320, H = 72, PAD = 4;
   const coords = points.map((p, i) => ({
     x: PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2),
     y: H - PAD - (p.value / max) * (H - PAD * 2),
@@ -293,56 +307,159 @@ function LineChart({ points, color = "#111" }: { points: { date: string; value: 
     ...coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`),
     `${(W - PAD).toFixed(1)},${H - PAD}`,
   ].join(" ");
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current || points.length < 2) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const svgX = PAD + relX * (W - PAD * 2);
+    let closest = 0, minDist = Infinity;
+    coords.forEach((c, i) => {
+      const d = Math.abs(c.x - svgX);
+      if (d < minDist) { minDist = d; closest = i; }
+    });
+    setHoverIdx(closest);
+  }, [coords, points.length]);
+
+  // Label stride — show ~6 labels regardless of range
+  const stride = Math.max(1, Math.floor(points.length / 6));
+  const labelPoints = points.filter((_, i) => i === 0 || i === points.length - 1 || i % stride === 0);
+
+  const fmtDate = (d: string) => {
+    const dt = new Date(d + "T00:00:00");
+    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const hoverPt = hoverIdx !== null ? points[hoverIdx] : null;
+  const hoverCoord = hoverIdx !== null ? coords[hoverIdx] : null;
+  // tooltip left as % of SVG width, clamped so it doesn't overflow
+  const tooltipLeftPct = hoverCoord ? Math.min(Math.max((hoverCoord.x / W) * 100, 10), 90) : 0;
+
   return (
-    <div>
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", overflow: "visible" }}>
-        {/* Gridlines */}
+    <div style={{ position: "relative", userSelect: "none" }}>
+      <svg
+        ref={svgRef}
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ display: "block", overflow: "visible", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
         {[0.25, 0.5, 0.75, 1].map((f) => (
           <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#f0f0f0" strokeWidth={1} />
         ))}
         <polygon points={fillPts} fill={color} fillOpacity={0.08} />
         <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-        {coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r={2.5} fill={color} />
-        ))}
+        {/* hover elements */}
+        {hoverCoord !== null && (
+          <>
+            <line x1={hoverCoord.x} x2={hoverCoord.x} y1={PAD} y2={H - PAD} stroke={color} strokeWidth={1} strokeDasharray="3 2" opacity={0.35} />
+            <circle cx={hoverCoord.x} cy={hoverCoord.y} r={4} fill="#fff" stroke={color} strokeWidth={2} />
+          </>
+        )}
       </svg>
+      {/* Tooltip */}
+      {hoverPt !== null && hoverCoord !== null && (
+        <div style={{
+          position: "absolute",
+          top: -8,
+          left: `${tooltipLeftPct}%`,
+          transform: "translateX(-50%)",
+          background: "#111",
+          color: "#fff",
+          padding: "0.3rem 0.6rem",
+          borderRadius: 5,
+          fontSize: "0.7rem",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          zIndex: 10,
+          lineHeight: 1.5,
+        }}>
+          <div style={{ color: "#aaa" }}>{fmtDate(hoverPt.date)}</div>
+          <div style={{ fontWeight: 600, fontSize: "0.8125rem" }}>
+            {valueFormatter ? valueFormatter(hoverPt.value) : hoverPt.value.toLocaleString()}
+          </div>
+        </div>
+      )}
+      {/* X-axis labels */}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.25rem" }}>
-        {points.map((p) => (
-          <span key={p.date} style={{ fontSize: "0.6rem", color: "#ccc" }}>{p.date.slice(5)}</span>
+        {labelPoints.map((p) => (
+          <span key={p.date} style={{ fontSize: "0.6rem", color: "#ccc" }}>{fmtDate(p.date)}</span>
         ))}
       </div>
     </div>
   );
 }
 
+const RANGE_OPTIONS = [
+  { label: "7d", value: 7 },
+  { label: "30d", value: 30 },
+  { label: "90d", value: 90 },
+];
+
+const STAT_TOOLTIPS: Record<string, string> = {
+  "Running": "Experiments currently live and collecting data.",
+  "Total experiments": "All experiments ever created — draft, running, paused, completed, and archived.",
+  "Visitors tested": "Unique visitor IDs ever allocated to at least one experiment across all time.",
+  "Plan": "Your current billing plan. Upgrade for higher visitor caps and advanced features.",
+};
+
 export default function DashboardIndex() {
   const {
-    shopDomain, activeExperiments, totalExperiments, visitorsTested,
+    shopDomain, range, activeExperiments, totalExperiments, visitorsTested,
     attributedRevenue, currency, recentExperiments, billingPlan,
     eventSparkline, revenueSparkline, eventsByType, experimentsByStatus, funnel,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
+  const [hoveredStat, setHoveredStat] = useState<string | null>(null);
 
   const totalEvents = eventSparkline.reduce((s: number, d: { count: number }) => s + d.count, 0);
-  const totalRevenue7d = revenueSparkline.reduce((s: number, d: { revenue: number }) => s + d.revenue, 0);
+  const totalRevenueRange = revenueSparkline.reduce((s: number, d: { revenue: number }) => s + d.revenue, 0);
   const fmtRevenue = new Intl.NumberFormat("en-US", { style: "currency", currency }).format(attributedRevenue);
-  const fmt7dRevenue = new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(totalRevenue7d);
+  const fmtRangeRevenue = new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(totalRevenueRange);
+  const fmtMoney = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
+  const rangeLabel = range === 7 ? "7 days" : range === 30 ? "30 days" : "90 days";
+
+  const rangeBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: "0.25rem 0.6rem",
+    fontSize: "0.75rem",
+    border: "1px solid #e9e9e9",
+    borderRadius: 5,
+    cursor: "pointer",
+    background: active ? "#111" : "#fff",
+    color: active ? "#fff" : "#777",
+    fontWeight: active ? 500 : 400,
+  });
 
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 1040, margin: "0 auto" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2.5rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2rem" }}>
         <div>
           <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: 0, letterSpacing: "-0.03em", color: "#111" }}>Overview</h1>
           <p style={{ fontSize: "0.8125rem", color: "#999", margin: "0.25rem 0 0" }}>{shopDomain}</p>
         </div>
-        <button
-          onClick={() => navigate("/dashboard/experiments/new")}
-          style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", letterSpacing: "-0.01em" }}
-        >
-          + New experiment
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            {RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                style={rangeBtnStyle(range === opt.value)}
+                onClick={() => setSearchParams({ range: String(opt.value) })}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => navigate("/dashboard/experiments/new")}
+            style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", letterSpacing: "-0.01em" }}
+          >
+            + New experiment
+          </button>
+        </div>
       </div>
 
       {/* Top stats */}
@@ -353,32 +470,49 @@ export default function DashboardIndex() {
           { label: "Visitors tested", value: visitorsTested.toLocaleString() },
           { label: "Plan", value: billingPlan.replace(/_/g, " ") },
         ].map((stat, i) => (
-          <div key={stat.label} style={{ padding: "1.25rem 1.5rem", borderRight: i < 3 ? "1px solid #e9e9e9" : "none" }}>
+          <div
+            key={stat.label}
+            style={{ padding: "1.25rem 1.5rem", borderRight: i < 3 ? "1px solid #e9e9e9" : "none", position: "relative", cursor: "default", background: hoveredStat === stat.label ? "#fafafa" : "#fff", transition: "background 0.15s" }}
+            onMouseEnter={() => setHoveredStat(stat.label)}
+            onMouseLeave={() => setHoveredStat(null)}
+          >
             <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>{stat.label}</div>
             <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111" }}>{stat.value}</div>
+            {hoveredStat === stat.label && (
+              <div style={{
+                position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+                background: "#111", color: "#fff", padding: "0.3rem 0.6rem", borderRadius: 5,
+                fontSize: "0.7rem", whiteSpace: "normal" as const, pointerEvents: "none", zIndex: 20, lineHeight: 1.5,
+                maxWidth: 220, textAlign: "center",
+              }}>
+                {STAT_TOOLTIPS[stat.label]}
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       {/* Row 1: Events sparkline + Revenue sparkline */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        {/* Events 7d */}
+        {/* Events */}
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Events · last 7 days</div>
+          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Events · last {rangeLabel}</div>
           <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.75rem" }}>{totalEvents.toLocaleString()}</div>
           <LineChart
             points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))}
             color="#6366f1"
+            valueFormatter={(v) => v.toLocaleString() + " events"}
           />
         </div>
 
-        {/* Revenue 7d */}
+        {/* Revenue */}
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Revenue attributed · last 7 days</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.75rem" }}>{fmt7dRevenue}</div>
+          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Revenue attributed · last {rangeLabel}</div>
+          <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.75rem" }}>{fmtRangeRevenue}</div>
           <LineChart
             points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))}
             color="#16a34a"
+            valueFormatter={(v) => fmtMoney(v)}
           />
         </div>
       </div>
@@ -387,14 +521,14 @@ export default function DashboardIndex() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
         {/* Conversion funnel */}
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Conversion funnel · 7 days</div>
+          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Conversion funnel · {rangeLabel}</div>
           <div style={{ fontSize: "0.75rem", color: "#bbb", marginBottom: "0.75rem" }}>Across all experiments</div>
           <FunnelChart steps={funnel} />
         </div>
 
         {/* Events by type */}
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Events by type · 7 days</div>
+          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Events by type · {rangeLabel}</div>
           <div style={{ fontSize: "0.75rem", color: "#bbb", marginBottom: "0.75rem" }}>All tracked event types</div>
           <BarChart
             bars={eventsByType.map((e: { type: string; count: number }) => ({
