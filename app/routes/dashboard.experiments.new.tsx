@@ -3,7 +3,7 @@ import { useActionData, useLoaderData, useNavigate, useSubmit } from "react-rout
 import { useState, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
-import { getThemes } from "../lib/shopify/admin.server";
+import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
 import type { ExperimentType } from "@prisma/client";
 
 const EXPERIMENT_TYPES = [
@@ -16,13 +16,15 @@ const EXPERIMENT_TYPES = [
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, shop } = await requireDashboardSession(request);
-  let themes: Array<{ id: string; name: string; role: string }> = [];
-  try { themes = await getThemes(admin); } catch {}
+  const [themes, templateFiles] = await Promise.all([
+    getThemes(admin).catch(() => [] as Array<{ id: string; name: string; role: string }>),
+    getThemeTemplateFiles(admin).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
+  ]);
   const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
   const segments = dbShop
     ? await prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } })
     : [];
-  return { themes, segments };
+  return { themes, templateFiles, segments };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -116,7 +118,7 @@ const helpText: React.CSSProperties = {
 };
 
 export default function NewExperiment() {
-  const { themes, segments } = useLoaderData<typeof loader>();
+  const { themes, templateFiles, segments } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -280,37 +282,41 @@ export default function NewExperiment() {
           </div>
         )}
 
-        {type === "TEMPLATE" && (
-          <div>
-            <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
-              In your theme, duplicate the template you want to test (e.g. <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.json</code> → <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>), make your changes, then enter the suffix below.
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <label style={label}>Template type</label>
-                <select style={input} value={templateType} onChange={(e) => setTemplateType(e.target.value)}>
-                  <option value="product">Product</option>
-                  <option value="collection">Collection</option>
-                  <option value="page">Page</option>
-                  <option value="index">Homepage</option>
-                  <option value="blog">Blog</option>
-                  <option value="article">Article</option>
-                </select>
-              </div>
-              <div>
-                <label style={label}>View name (suffix)</label>
-                <input
-                  style={input}
-                  value={variantViewName}
-                  onChange={(e) => setVariantViewName(e.target.value)}
-                  placeholder="e.g. my-test"
-                  autoComplete="off"
-                />
-                <p style={helpText}>For <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>, enter <strong>my-test</strong>.</p>
+        {type === "TEMPLATE" && (() => {
+          const filtered = templateFiles.filter((f) => f.type === templateType);
+          return (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={label}>Template type</label>
+                  <select style={input} value={templateType} onChange={(e) => { setTemplateType(e.target.value); setVariantViewName(""); }}>
+                    <option value="product">Product</option>
+                    <option value="collection">Collection</option>
+                    <option value="page">Page</option>
+                    <option value="index">Homepage</option>
+                    <option value="blog">Blog</option>
+                    <option value="article">Article</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={label}>{variantName || "Variant B"} template</label>
+                  {filtered.length > 0 ? (
+                    <select style={input} value={variantViewName} onChange={(e) => setVariantViewName(e.target.value)}>
+                      <option value="">— Select alternate template —</option>
+                      {filtered.map((f) => (
+                        <option key={f.view} value={f.view}>{f.filename}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ padding: "0.5rem 0.75rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.8125rem", color: "#92400e" }}>
+                      No alternate {templateType} templates found. Duplicate <code style={{ background: "#fde68a55", padding: "0 0.2rem", borderRadius: 2 }}>templates/{templateType}.json</code> in your theme first.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Traffic */}

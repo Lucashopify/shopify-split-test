@@ -104,6 +104,48 @@ export async function deleteTheme(
 }
 
 /**
+ * Fetch alternate template files (e.g. product.my-test.json) from the live theme.
+ * Returns only files that have a view suffix — default templates are excluded.
+ */
+export async function getThemeTemplateFiles(
+  admin: { graphql: (query: string, options?: { variables: Record<string, unknown> }) => Promise<Response> },
+): Promise<Array<{ filename: string; type: string; view: string }>> {
+  const themesResp = await admin.graphql(`
+    query GetMainTheme {
+      themes(first: 1, roles: [MAIN]) {
+        nodes { id }
+      }
+    }
+  `);
+  const { data: themesData } = await themesResp.json();
+  const themeId: string | undefined = themesData?.themes?.nodes?.[0]?.id;
+  if (!themeId) return [];
+
+  const filesResp = await admin.graphql(
+    `query GetThemeFiles($id: ID!) {
+      theme(id: $id) {
+        files(first: 250) {
+          nodes { filename }
+        }
+      }
+    }`,
+    { variables: { id: themeId } },
+  );
+  const { data: filesData } = await filesResp.json();
+  const files: Array<{ filename: string }> = filesData?.theme?.files?.nodes ?? [];
+
+  return files
+    .filter((f) => f.filename.startsWith("templates/") && f.filename.endsWith(".json"))
+    .map((f) => {
+      const base = f.filename.slice("templates/".length, -".json".length);
+      const dotIdx = base.indexOf(".");
+      if (dotIdx === -1) return null; // default template — skip
+      return { filename: f.filename, type: base.slice(0, dotIdx), view: base.slice(dotIdx + 1) };
+    })
+    .filter((f): f is { filename: string; type: string; view: string } => f !== null);
+}
+
+/**
  * Get shop metadata needed at install time.
  */
 export async function getShopMetadata(admin: {

@@ -3,7 +3,7 @@ import { useLoaderData, useNavigate, useSubmit } from "react-router";
 import { useState, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
-import { getThemes } from "../lib/shopify/admin.server";
+import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
 import type { ExperimentType } from "@prisma/client";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -21,11 +21,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!variant) throw new Response("Variant not found", { status: 404 });
 
   let themes: Array<{ id: string; name: string; role: string }> = [];
+  let templateFiles: Array<{ filename: string; type: string; view: string }> = [];
   if (experiment.type === "THEME") {
     try { themes = await getThemes(admin); } catch {}
+  } else if (experiment.type === "TEMPLATE") {
+    try { templateFiles = await getThemeTemplateFiles(admin); } catch {}
   }
 
-  return { experiment, variant, themes };
+  return { experiment, variant, themes, templateFiles };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -116,7 +119,7 @@ const warnBanner: React.CSSProperties = {
 };
 
 export default function VariantEditor() {
-  const { experiment, variant, themes } = useLoaderData<typeof loader>();
+  const { experiment, variant, themes, templateFiles } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const submit = useSubmit();
   const type = experiment.type as ExperimentType;
@@ -277,33 +280,37 @@ export default function VariantEditor() {
       )}
 
       {/* TEMPLATE */}
-      {type === "TEMPLATE" && (
-        <div style={card}>
-          <div style={cardTitle}>Alternate template</div>
-          {variant.isControl ? (
-            <div style={infoBanner}>The control variant uses the default template. No configuration needed.</div>
-          ) : (
-            <>
-              <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
-                In your theme code, duplicate the template file (e.g. <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.json</code> → <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>product.my-test.json</code>), make your changes, then enter the suffix here. Variant visitors will be routed to <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view=&lt;suffix&gt;</code> automatically.
-              </p>
-              <label style={label}>View name (suffix)</label>
-              <input
-                style={input}
-                value={redirectUrl}
-                onChange={(e) => setRedirectUrl(e.target.value)}
-                placeholder="e.g. my-test"
-                autoComplete="off"
-              />
-              {redirectUrl && (
-                <p style={{ ...helpText, marginTop: "0.5rem" }}>
-                  Variant visitors will load: <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view={redirectUrl}</code>
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      {type === "TEMPLATE" && (() => {
+        const targetType = experiment.targetTemplate ?? "product";
+        const filtered = templateFiles.filter((f) => f.type === targetType);
+        return (
+          <div style={card}>
+            <div style={cardTitle}>Alternate template</div>
+            {variant.isControl ? (
+              <div style={infoBanner}>The control variant uses the default template. No configuration needed.</div>
+            ) : filtered.length > 0 ? (
+              <>
+                <label style={label}>Select template</label>
+                <select style={input} value={redirectUrl} onChange={(e) => setRedirectUrl(e.target.value)}>
+                  <option value="">— Select alternate template —</option>
+                  {filtered.map((f) => (
+                    <option key={f.view} value={f.view}>{f.filename}</option>
+                  ))}
+                </select>
+                {redirectUrl && (
+                  <p style={{ ...helpText, marginTop: "0.5rem" }}>
+                    Variant visitors will load: <code style={{ background: "#f3f3f3", padding: "0.1rem 0.3rem", borderRadius: 3 }}>?view={redirectUrl}</code>
+                  </p>
+                )}
+              </>
+            ) : (
+              <div style={warnBanner}>
+                No alternate {targetType} templates found in your live theme. Duplicate <code style={{ background: "#fde68a55", padding: "0 0.2rem", borderRadius: 2 }}>templates/{targetType}.json</code> in your theme code, make your changes, then reload this page.
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
