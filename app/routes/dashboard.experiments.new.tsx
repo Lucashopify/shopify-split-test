@@ -231,7 +231,7 @@ export default function NewExperiment() {
           onChange={setType}
           options={EXPERIMENT_TYPES.map((t) => {
             const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
-            return { value: t.value, label: locked ? `🔒 ${t.label} — Starter plan required` : t.label, disabled: !!locked };
+            return { value: t.value, label: locked ? `${t.label} — Starter plan required` : t.label, disabled: !!locked };
           })}
         />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
