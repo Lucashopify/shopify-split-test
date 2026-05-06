@@ -66,7 +66,8 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
         select: {
           id: true, trafficWeight: true, isControl: true,
           themeId: true, redirectUrl: true,
-          priceAdjType: true, priceAdjValue: true,\n          customLiquid: true,
+          priceAdjType: true, priceAdjValue: true,
+          customLiquid: true,
         },
       },
       segment: { select: { id: true, rules: true } },
