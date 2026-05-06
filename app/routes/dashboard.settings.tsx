@@ -59,7 +59,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     metafieldHasValue,
     configExperimentsCount,
     needsReauth,
-    appUrl: process.env.SHOPIFY_APP_URL ?? "",
   }, { headers: { "Set-Cookie": setCookie } });
 };
 
@@ -131,89 +130,96 @@ export default function SettingsPage() {
   const {
     shopDomain, myshopifyDomain, currency, timezone, installedAt,
     metafieldDefinitionExists, metafieldHasValue,
-    configExperimentsCount, needsReauth, appUrl,
+    configExperimentsCount, needsReauth,
   } = useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<{ ok?: boolean; message?: string; error?: string; needsReauth?: boolean }>();
   const syncing = fetcher.state !== "idle";
-
   const showReauth = needsReauth || fetcher.data?.needsReauth;
+  const themeEditorUrl = `https://${shopDomain}/admin/themes/current/editor?context=apps`;
 
   return (
-    <div style={{ padding: "2.5rem 3rem", maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem 3rem", maxWidth: 680, margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: "0 0 2rem", letterSpacing: "-0.03em", color: "#111" }}>Settings</h1>
 
       {/* Re-auth banner */}
       {showReauth && (
         <div style={{ marginBottom: "1.5rem", padding: "1rem 1.25rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8 }}>
-          <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e", marginBottom: "0.4rem" }}>
-            Re-authorization required
-          </div>
+          <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e", marginBottom: "0.4rem" }}>Re-authorization required</div>
           <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
-            Shopify is rejecting the stored access token. This usually means the token is a legacy non-expiring type that Shopify no longer accepts. To fix: go to your <strong>Shopify Partner Dashboard → App → Configuration</strong> and enable <strong>Token expiration</strong>, then click Re-authorize below.
+            Shopify is rejecting the stored access token. Go to your <strong>Shopify Partner Dashboard → App → Configuration</strong>, enable <strong>Token expiration</strong>, then re-authorize.
           </p>
           <fetcher.Form method="post">
             <input type="hidden" name="intent" value="reauth" />
             <input type="hidden" name="shop" value={myshopifyDomain} />
-            <button
-              type="submit"
-              style={{ padding: "0.45rem 1rem", background: "#d97706", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer" }}
-            >
+            <button type="submit" style={{ padding: "0.45rem 1rem", background: "#d97706", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer" }}>
               Re-authorize app →
             </button>
           </fetcher.Form>
         </div>
       )}
 
-      {/* Store */}
-      <section style={{ marginBottom: "2.5rem" }}>
-        <h2 style={{ fontSize: "0.75rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.5rem" }}>Store</h2>
+      {/* Store info */}
+      <section style={{ marginBottom: "2rem" }}>
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Store</div>
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "0 1.25rem" }}>
-          <Row label="Shop domain" value={shopDomain} mono />
-          <Row label="Myshopify domain" value={myshopifyDomain} mono />
+          <Row label="Domain" value={shopDomain} mono />
           <Row label="Currency" value={currency} />
           <Row label="Timezone" value={timezone} />
           <Row label="Installed" value={installedAt ? new Date(installedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "—"} />
         </div>
       </section>
 
-      {/* Integrations */}
-      <section style={{ marginBottom: "2.5rem" }}>
-        <h2 style={{ fontSize: "0.75rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.5rem" }}>Integrations</h2>
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "0 1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Theme App Extension</div>
-            <div style={{ fontSize: "0.8125rem", color: "#777" }}>Enable "Split Test" in Theme Editor → App embeds → Save</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>App URL</div>
-            <div style={{ fontSize: "0.8125rem", color: "#111", fontFamily: "monospace" }}>{appUrl}</div>
-          </div>
+      {/* Storefront embed */}
+      <section style={{ marginBottom: "2rem" }}>
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Storefront embed</div>
+        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem" }}>
+          <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.3rem" }}>App embed</div>
+          <p style={{ fontSize: "0.8125rem", color: "#777", margin: "0 0 0.875rem", lineHeight: 1.6 }}>
+            The Split Tester embed loads the tracking script on every storefront page. Without it, no experiments will run.
+          </p>
+          <a
+            href={themeEditorUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.4rem 0.875rem", background: "#111", color: "#fff", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, textDecoration: "none" }}
+          >
+            Open Theme Editor ↗
+          </a>
+          <p style={{ fontSize: "0.75rem", color: "#bbb", margin: "0.625rem 0 0", lineHeight: 1.5 }}>
+            In the Theme Editor, go to <strong style={{ color: "#999" }}>App embeds</strong> and toggle on <strong style={{ color: "#999" }}>Split Tester</strong>, then save.
+          </p>
         </div>
       </section>
 
-      {/* Storefront config diagnostics */}
-      <section>
-        <h2 style={{ fontSize: "0.75rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.5rem" }}>Storefront config</h2>
+      {/* Diagnostics */}
+      <section style={{ marginBottom: "2rem" }}>
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Diagnostics</div>
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "0 1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Metafield definition</div>
-            <StatusDot
-              ok={metafieldDefinitionExists}
-              label={metafieldDefinitionExists ? "Exists" : "Missing — Liquid can't read config"}
-            />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
+            <div>
+              <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.15rem" }}>Metafield definition</div>
+              <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Required for the embed to read experiment config at Liquid render time.</div>
+            </div>
+            <StatusDot ok={metafieldDefinitionExists} label={metafieldDefinitionExists ? "Exists" : "Missing"} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Config written</div>
-            <StatusDot
-              ok={metafieldHasValue}
-              warn={!metafieldHasValue}
-              label={metafieldHasValue ? `Yes — ${configExperimentsCount} running experiment(s)` : "Not written yet"}
-            />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.875rem 0", borderBottom: "1px solid #f3f3f3" }}>
+            <div>
+              <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.15rem" }}>Config synced</div>
+              <div style={{ fontSize: "0.75rem", color: "#aaa" }}>
+                {metafieldHasValue ? `${configExperimentsCount} running experiment${configExperimentsCount !== 1 ? "s" : ""} in storefront config.` : "No config written yet. Start an experiment to populate this."}
+              </div>
+            </div>
+            <StatusDot ok={metafieldHasValue} warn={!metafieldHasValue} label={metafieldHasValue ? "Synced" : "Not synced"} />
           </div>
-          <div style={{ display: "flex", alignItems: "center", padding: "0.875rem 0" }}>
-            <div style={{ width: 220, fontSize: "0.8125rem", color: "#777", flexShrink: 0 }}>Force sync</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.875rem 0" }}>
+            <div>
+              <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.15rem" }}>Force sync</div>
+              <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Manually push experiment config to the storefront metafield.</div>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              {fetcher.data?.message && <span style={{ fontSize: "0.8125rem", color: "#16a34a" }}>{fetcher.data.message}</span>}
+              {fetcher.data?.error && <span style={{ fontSize: "0.8125rem", color: "#dc2626" }}>{fetcher.data.error}</span>}
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="force_sync" />
                 <button
@@ -224,18 +230,28 @@ export default function SettingsPage() {
                   {syncing ? "Syncing…" : "Sync now"}
                 </button>
               </fetcher.Form>
-              {fetcher.data?.message && (
-                <span style={{ fontSize: "0.8125rem", color: "#16a34a" }}>{fetcher.data.message}</span>
-              )}
-              {fetcher.data?.error && (
-                <span style={{ fontSize: "0.8125rem", color: "#dc2626" }}>{fetcher.data.error}</span>
-              )}
             </div>
           </div>
         </div>
-        <p style={{ fontSize: "0.75rem", color: "#bbb", margin: "0.6rem 0 0", lineHeight: 1.5 }}>
-          The storefront embed reads this metafield at Liquid render time. Press "Sync now" after starting an experiment if visitor counts stay at 0.
-        </p>
+      </section>
+
+      {/* Support */}
+      <section>
+        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Support</div>
+        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.15rem" }}>Get help</div>
+            <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Documentation, setup guides, and direct support.</div>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <a href="https://docs.splittester.com" target="_blank" rel="noreferrer" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
+              Docs ↗
+            </a>
+            <a href="mailto:support@splittester.com" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
+              Contact support
+            </a>
+          </div>
+        </div>
       </section>
     </div>
   );
