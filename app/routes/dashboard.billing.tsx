@@ -1,3 +1,4 @@
+import React from "react";
 import { data, redirect, useFetcher, useLoaderData, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -5,11 +6,14 @@ import { prisma } from "../db.server";
 // ---------------------------------------------------------------------------
 // Plan definitions — single source of truth for UI + billing API
 // ---------------------------------------------------------------------------
+const YEARLY_DISCOUNT = 0.25; // 25% off
+
 const PLAN_CONFIG = {
   starter: {
     id: "starter",
     name: "Starter",
     shopifyName: "Starter — Split Tester",
+    shopifyNameYearly: "Starter Annual — Split Tester",
     price: 79.0,
     visitorCap: 20_000,
     experimentsLabel: "10 running",
@@ -21,6 +25,7 @@ const PLAN_CONFIG = {
     id: "growth",
     name: "Growth",
     shopifyName: "Growth — Split Tester",
+    shopifyNameYearly: "Growth Annual — Split Tester",
     price: 299.0,
     visitorCap: 100_000,
     experimentsLabel: "Unlimited",
@@ -32,6 +37,7 @@ const PLAN_CONFIG = {
     id: "scale",
     name: "Scale",
     shopifyName: "Scale — Split Tester",
+    shopifyNameYearly: "Scale Annual — Split Tester",
     price: 749.0,
     visitorCap: 500_000,
     experimentsLabel: "Unlimited",
@@ -146,12 +152,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "upgrade") {
     const planId = String(formData.get("planId") ?? "") as PaidPlanId;
+    const yearly = formData.get("yearly") === "true";
     const plan = PLAN_CONFIG[planId];
     if (!plan) return data({ error: "Invalid plan" }, { headers: { "Set-Cookie": setCookie } });
 
     const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
     const returnUrl = `${appUrl}/dashboard/billing?shop=${shop.myshopifyDomain ?? shopDomain}`;
     const isTest = process.env.NODE_ENV !== "production";
+
+    const monthlyEquiv = yearly ? Math.round(plan.price * (1 - YEARLY_DISCOUNT)) : plan.price;
+    const annualTotal = Math.round(monthlyEquiv * 12);
+    const subscriptionName = yearly ? plan.shopifyNameYearly : plan.shopifyName;
+    const interval = yearly ? "ANNUAL" : "EVERY_30_DAYS";
+    const chargeAmount = yearly ? annualTotal : plan.price;
 
     try {
       const resp = await admin.graphql(`
@@ -164,15 +177,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       `, {
         variables: {
-          name: plan.shopifyName,
+          name: subscriptionName,
           returnUrl,
           trialDays: plan.trialDays,
           test: isTest,
           lineItems: [{
             plan: {
               appRecurringPricingDetails: {
-                price: { amount: plan.price, currencyCode: "USD" },
-                interval: "EVERY_30_DAYS",
+                price: { amount: chargeAmount, currencyCode: "USD" },
+                interval,
               },
             },
           }],
@@ -242,6 +255,7 @@ export default function BillingPage() {
 
   const fetcher = useFetcher<{ error?: string; ok?: boolean }>();
   const upgrading = fetcher.state !== "idle";
+  const [yearly, setYearly] = React.useState(false);
 
   const usagePct = Math.min((visitorCount / monthlyVisitorCap) * 100, 100);
   const daysLeft = trialEndsAt
@@ -325,7 +339,34 @@ export default function BillingPage() {
 
       {/* Plan cards */}
       <section>
-        <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.75rem" }}>Plans</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+          <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em" }}>Plans</div>
+          {/* Billing toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+            <span style={{ fontSize: "0.8125rem", color: yearly ? "#aaa" : "#111", fontWeight: yearly ? 400 : 500 }}>Monthly</span>
+            <button
+              onClick={() => setYearly(!yearly)}
+              style={{
+                width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer", padding: 0,
+                background: yearly ? "#111" : "#e9e9e9", position: "relative", transition: "background 0.2s",
+              }}
+            >
+              <span style={{
+                position: "absolute", top: 3, left: yearly ? 21 : 3,
+                width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                transition: "left 0.2s", display: "block",
+              }} />
+            </button>
+            <span style={{ fontSize: "0.8125rem", color: yearly ? "#111" : "#aaa", fontWeight: yearly ? 500 : 400 }}>
+              Yearly
+            </span>
+            {yearly && (
+              <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#16a34a", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4, padding: "0.1rem 0.45rem" }}>
+                Save 25%
+              </span>
+            )}
+          </div>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
           {PAID_PLANS.map((plan) => {
             const isCurrent = plan.id === planName;
@@ -349,10 +390,20 @@ export default function BillingPage() {
                 )}
 
                 <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#111", marginBottom: "0.2rem" }}>{plan.name}</div>
-                <div style={{ marginBottom: "0.75rem" }}>
-                  <span style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111", letterSpacing: "-0.03em" }}>${plan.price}</span>
+                <div style={{ marginBottom: yearly ? "0.1rem" : "0.75rem" }}>
+                  <span style={{ fontSize: "1.375rem", fontWeight: 700, color: "#111", letterSpacing: "-0.03em" }}>
+                    ${yearly ? Math.round(plan.price * (1 - YEARLY_DISCOUNT)) : plan.price}
+                  </span>
                   <span style={{ fontSize: "0.8125rem", color: "#aaa" }}>/mo</span>
+                  {yearly && (
+                    <span style={{ marginLeft: "0.4rem", fontSize: "0.75rem", color: "#aaa", textDecoration: "line-through" }}>${plan.price}</span>
+                  )}
                 </div>
+                {yearly && (
+                  <div style={{ fontSize: "0.7rem", color: "#16a34a", fontWeight: 500, marginBottom: "0.75rem" }}>
+                    ${Math.round(plan.price * (1 - YEARLY_DISCOUNT) * 12)}/year billed annually
+                  </div>
+                )}
 
                 <div style={{ fontSize: "0.75rem", color: "#555", marginBottom: "0.25rem" }}>
                   <strong>{plan.visitorCap.toLocaleString()}</strong> visitors/mo
@@ -377,6 +428,7 @@ export default function BillingPage() {
                   <fetcher.Form method="post">
                     <input type="hidden" name="intent" value="upgrade" />
                     <input type="hidden" name="planId" value={plan.id} />
+                    <input type="hidden" name="yearly" value={String(yearly)} />
                     <button
                       type="submit"
                       disabled={upgrading}
