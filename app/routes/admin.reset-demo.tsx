@@ -20,9 +20,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (!shop) return new Response("Shop not found", { status: 404 });
 
-  const result = await prisma.experiment.deleteMany({ where: { shopId: shop.id } });
+  const shopId = shop.id;
 
-  return new Response(`Reset done — deleted ${result.count} experiments. You can now open the app and it will show onboarding.`, {
+  // Delete in dependency order
+  await prisma.auditLog.deleteMany({ where: { shopId } });
+  await prisma.experimentResult.deleteMany({ where: { experiment: { shopId } } });
+  await prisma.event.deleteMany({ where: { shopId } });
+  await prisma.order.updateMany({ where: { shopId }, data: { experimentId: null, variantId: null } });
+  await prisma.allocation.deleteMany({ where: { experiment: { shopId } } });
+  await prisma.experiment.deleteMany({ where: { shopId } });
+
+  return new Response(`Reset done. Open the app — it will show onboarding.`, {
     headers: { "Content-Type": "text/plain" },
   });
 };
