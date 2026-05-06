@@ -1,4 +1,4 @@
-import { data, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from "react-router";
+import { data, redirect, useLoaderData, useNavigate, useSearchParams, type LoaderFunctionArgs } from "react-router";
 import { useState, useRef, useCallback } from "react";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -18,6 +18,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       billingPlan: true,
     },
   });
+
+  // Redirect new merchants to onboarding on first visit
+  if (shop) {
+    const experimentCount = await prisma.experiment.count({ where: { shopId: shop.id } });
+    if (experimentCount === 0) {
+      throw redirect("/dashboard/onboarding", { headers: { "Set-Cookie": setCookie } });
+    }
+  }
 
   const shopId = shop?.id ?? "";
   const url = new URL(request.url);
