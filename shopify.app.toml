@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "842285b54c003859a0ca5d6b5e1b74ad"
-name = "Split tester"
+name = "Arktic - A/B Split test"
 application_url = "https://app.arkticstudio.com"
 embedded = false
 

@@ -259,7 +259,7 @@ export default function SettingsPage() {
         <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem" }}>
           <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500, marginBottom: "0.3rem" }}>App embed</div>
           <p style={{ fontSize: "0.8125rem", color: "#777", margin: "0 0 0.875rem", lineHeight: 1.6 }}>
-            The Split Tester embed loads the tracking script on every storefront page. Without it, no experiments will run.
+            The Arktic - A/B Split test embed loads the tracking script on every storefront page. Without it, no experiments will run.
           </p>
           <a
             href={themeEditorUrl}
@@ -270,7 +270,7 @@ export default function SettingsPage() {
             Open Theme Editor ↗
           </a>
           <p style={{ fontSize: "0.75rem", color: "#bbb", margin: "0.625rem 0 0", lineHeight: 1.5 }}>
-            In the Theme Editor, go to <strong style={{ color: "#999" }}>App embeds</strong> and toggle on <strong style={{ color: "#999" }}>Split Tester</strong>, then save.
+            In the Theme Editor, go to <strong style={{ color: "#999" }}>App embeds</strong> and toggle on <strong style={{ color: "#999" }}>Arktic - A/B Split test</strong>, then save.
           </p>
         </div>
       </section>

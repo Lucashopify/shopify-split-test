@@ -12,8 +12,8 @@ const PLAN_CONFIG = {
   starter: {
     id: "starter",
     name: "Starter",
-    shopifyName: "Starter — Split Tester",
-    shopifyNameYearly: "Starter Annual — Split Tester",
+    shopifyName: "Starter — Arktic - A/B Split test",
+    shopifyNameYearly: "Starter Annual — Arktic - A/B Split test",
     price: 79.0,
     visitorCap: 20_000,
     experimentsLabel: "10 running",
@@ -24,8 +24,8 @@ const PLAN_CONFIG = {
   growth: {
     id: "growth",
     name: "Growth",
-    shopifyName: "Growth — Split Tester",
-    shopifyNameYearly: "Growth Annual — Split Tester",
+    shopifyName: "Growth — Arktic - A/B Split test",
+    shopifyNameYearly: "Growth Annual — Arktic - A/B Split test",
     price: 299.0,
     visitorCap: 100_000,
     experimentsLabel: "Unlimited",
@@ -36,8 +36,8 @@ const PLAN_CONFIG = {
   scale: {
     id: "scale",
     name: "Scale",
-    shopifyName: "Scale — Split Tester",
-    shopifyNameYearly: "Scale Annual — Split Tester",
+    shopifyName: "Scale — Arktic - A/B Split test",
+    shopifyNameYearly: "Scale Annual — Arktic - A/B Split test",
     price: 749.0,
     visitorCap: 500_000,
     experimentsLabel: "Unlimited",

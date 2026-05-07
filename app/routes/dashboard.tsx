@@ -137,7 +137,7 @@ export default function DashboardLayout() {
         <div style={S.logoArea}>
           <div style={S.logoRow}>
             <div style={S.logoMark}>S</div>
-            <span style={S.logoText}>Split Tester</span>
+            <span style={S.logoText}>Arktic</span>
           </div>
           <div style={S.shopName}>{shop}</div>
         </div>
