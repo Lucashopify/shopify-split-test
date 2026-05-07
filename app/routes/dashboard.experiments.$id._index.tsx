@@ -338,12 +338,17 @@ export default function ExperimentDetail() {
           {/* Action buttons */}
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             {(displayStatus === "RUNNING" || displayStatus === "PAUSED") && (
-              <fetcher.Form method="post">
-                <input type="hidden" name="intent" value="complete" />
-                <button type="submit" disabled={isSubmitting} style={{ padding: "0.4rem 0.875rem", background: "none", color: "#777", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}>
-                  Mark complete
-                </button>
-              </fetcher.Form>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.2rem" }}>
+                <fetcher.Form method="post">
+                  <input type="hidden" name="intent" value="complete" />
+                  <button type="submit" disabled={isSubmitting} style={{ padding: "0.4rem 0.875rem", background: "none", color: "#777", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}>
+                    Mark complete
+                  </button>
+                </fetcher.Form>
+                {belowMinRuntime && (
+                  <span style={{ fontSize: "0.7rem", color: "#aaa" }}>{daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining for reliable results</span>
+                )}
+              </div>
             )}
             {displayStatus === "COMPLETED" && (
               <fetcher.Form method="post">
@@ -389,20 +394,6 @@ export default function ExperimentDetail() {
         </div>
       )}
 
-      {/* Minimum runtime warning */}
-      {belowMinRuntime && (
-        <div style={{ marginBottom: "1rem", padding: "0.875rem 1.25rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-          <span style={{ fontSize: "1rem", lineHeight: 1 }}>ℹ</span>
-          <div>
-            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#1e40af", marginBottom: "0.2rem" }}>
-              Minimum runtime not reached ({daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining)
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "#1d4ed8", lineHeight: 1.5 }}>
-              Stopping before {minDays} days risks peeking bias — early results are volatile and the day-of-week cycle hasn't completed. Results stopped this early are unreliable for decision-making.
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div style={{ borderBottom: "1px solid #e9e9e9", marginBottom: "1.5rem", display: "flex", gap: "0" }}>
