@@ -1,5 +1,6 @@
+import React from "react";
 import { type LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, useRevalidator } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
@@ -75,6 +76,15 @@ export default function Onboarding() {
   const { shop, myshopifyDomain, embedActive, hasExperiment, hasRunning, isPaid, apiKey } =
     useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
+
+  // Re-check when merchant returns from Theme Editor tab
+  React.useEffect(() => {
+    if (embedActive) return;
+    const handler = () => revalidate();
+    window.addEventListener("focus", handler);
+    return () => window.removeEventListener("focus", handler);
+  }, [embedActive, revalidate]);
 
   // Deep link — pre-toggles the embed block so merchant just clicks Save
   const shopName = shop.replace(".myshopify.com", "");
