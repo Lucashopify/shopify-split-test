@@ -7,15 +7,15 @@ export default function PrivacyPolicy() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "3rem 2rem", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: "#111", lineHeight: 1.7 }}>
       <div style={{ marginBottom: "2.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "1.5rem" }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>S</div>
-          <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>Split Tester</span>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>A</div>
+          <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>Arktic</span>
         </div>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem", letterSpacing: "-0.03em" }}>Privacy Policy</h1>
         <p style={{ color: "#777", margin: 0, fontSize: "0.875rem" }}>Last updated: May 2026</p>
       </div>
 
       <Section title="Overview">
-        Split Tester ("we", "our", or "the app") is a Shopify app that enables merchants to run A/B experiments on their storefronts. This policy explains what data we collect, how we use it, and your rights regarding that data.
+        Arktic ("we", "our", or "the app") is a Shopify app that enables merchants to run A/B experiments on their storefronts. This policy explains what data we collect, how we use it, and your rights regarding that data.
       </Section>
 
       <Section title="Data we collect">
@@ -65,11 +65,11 @@ export default function PrivacyPolicy() {
           <li>Request deletion of your store's data at any time</li>
           <li>Disconnect third-party integrations (e.g. Google Analytics) from the Settings page</li>
         </ul>
-        To exercise these rights, contact us at <a href="mailto:support@splittester.com" style={{ color: "#2563eb" }}>support@splittester.com</a>.
+        To exercise these rights, contact us at <a href="mailto:info@arkticstudio.com" style={{ color: "#2563eb" }}>info@arkticstudio.com</a>.
       </Section>
 
       <Section title="GDPR and data processing">
-        For merchants operating in the EU or serving EU customers, we act as a data processor on your behalf. Storefront visitor data is collected under your store's privacy policy and consent mechanisms. We recommend ensuring your store's cookie consent banner covers analytics cookies set by Split Tester (<code style={{ background: "#f5f5f5", padding: "0.1rem 0.3rem", borderRadius: 3, fontSize: "0.85em" }}>spt_vid</code>, <code style={{ background: "#f5f5f5", padding: "0.1rem 0.3rem", borderRadius: 3, fontSize: "0.85em" }}>spt_asgn</code>).
+        For merchants operating in the EU or serving EU customers, we act as a data processor on your behalf. Storefront visitor data is collected under your store's privacy policy and consent mechanisms. We recommend ensuring your store's cookie consent banner covers analytics cookies set by Arktic (<code style={{ background: "#f5f5f5", padding: "0.1rem 0.3rem", borderRadius: 3, fontSize: "0.85em" }}>spt_vid</code>, <code style={{ background: "#f5f5f5", padding: "0.1rem 0.3rem", borderRadius: 3, fontSize: "0.85em" }}>spt_asgn</code>).
       </Section>
 
       <Section title="Changes to this policy">
@@ -79,7 +79,7 @@ export default function PrivacyPolicy() {
       <Section title="Contact">
         <p style={{ margin: 0 }}>
           For privacy questions or data requests, contact us at{" "}
-          <a href="mailto:support@splittester.com" style={{ color: "#2563eb" }}>support@splittester.com</a>.
+          <a href="mailto:info@arkticstudio.com" style={{ color: "#2563eb" }}>info@arkticstudio.com</a>.
         </p>
       </Section>
     </div>
