@@ -5,7 +5,7 @@ import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
 
-const EMBED_TYPE = "shopify://apps/split-test/blocks/split-test-embed";
+const EMBED_TYPE_PREFIX = "shopify://apps/split-tester/blocks/split-test-embed";
 
 async function isEmbedEnabled(
   restFetch: (path: string, init?: RequestInit) => Promise<Response>,
@@ -27,7 +27,7 @@ async function isEmbedEnabled(
     const blocks = settings?.current?.blocks ?? {};
     console.log("[embed-check] blocks:", JSON.stringify(blocks).slice(0, 300));
     const enabled = Object.values(blocks).some(
-      (b: unknown) => (b as { type: string; disabled?: boolean }).type === EMBED_TYPE &&
+      (b: unknown) => (b as { type: string; disabled?: boolean }).type?.startsWith(EMBED_TYPE_PREFIX) &&
         (b as { disabled?: boolean }).disabled !== true,
     );
     console.log("[embed-check] enabled:", enabled);
