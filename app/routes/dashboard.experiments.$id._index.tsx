@@ -388,7 +388,11 @@ export default function ExperimentDetail() {
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block", flexShrink: 0 }} />
                   Not significant
                 </span>
-              ) : null
+              ) : (
+                <span style={{ fontSize: "0.75rem", color: "#aaa", background: "#f5f5f5", border: "1px solid #e9e9e9", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                  Collecting data
+                </span>
+              )
             )}
           </div>
 
