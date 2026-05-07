@@ -340,6 +340,18 @@ export default function ExperimentDetail() {
   };
   const displayStatus = (pendingIntent && intentStatusMap[pendingIntent]) ? intentStatusMap[pendingIntent] : status;
 
+  // Significance indicator for header
+  const totalSessions = variantStats.reduce((s, v) => s + v.sessions, 0);
+  const bestResult = resultRows.reduce<{ pValue: number | null; liftPct: number | null } | null>((best, r) => {
+    if (r._max.liftPct == null) return best;
+    if (best == null || (r._max.liftPct ?? 0) > (best.liftPct ?? 0)) {
+      return { pValue: r._max.pValue ?? null, liftPct: r._max.liftPct ?? null };
+    }
+    return best;
+  }, null);
+  const isSignificant = bestResult?.pValue != null && bestResult.pValue < 0.05;
+  const headerLift = bestResult?.liftPct;
+
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 860, margin: "0 auto" }}>
       {/* Header */}
@@ -365,6 +377,19 @@ export default function ExperimentDetail() {
               {displayStatus.toLowerCase()}
             </span>
             <style>{`@keyframes spt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
+            {status !== "DRAFT" && (
+              isSignificant && headerLift != null ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 500, color: headerLift >= 0 ? "#16a34a" : "#dc2626", background: headerLift >= 0 ? "#f0fdf4" : "#fef2f2", border: `1px solid ${headerLift >= 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: headerLift >= 0 ? "#16a34a" : "#dc2626", display: "inline-block", flexShrink: 0 }} />
+                  Significant · {headerLift >= 0 ? "+" : ""}{(headerLift * 100).toFixed(1)}%
+                </span>
+              ) : totalSessions >= 100 ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: "#d97706", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block", flexShrink: 0 }} />
+                  Not significant
+                </span>
+              ) : null
+            )}
           </div>
 
           {/* Action buttons */}
