@@ -2,7 +2,7 @@
 
 client_id = "842285b54c003859a0ca5d6b5e1b74ad"
 name = "Split tester"
-application_url = "https://amused-bravery-production-e9f7.up.railway.app"
+application_url = "https://app.arkticstudio.com"
 embedded = false
 
 [build]
@@ -15,9 +15,9 @@ scopes = "read_products,write_products,read_themes,write_themes,read_orders,writ
 
 [auth]
 redirect_urls = [
-  "https://amused-bravery-production-e9f7.up.railway.app/auth/callback",
-  "https://amused-bravery-production-e9f7.up.railway.app/auth/shopify/callback",
-  "https://amused-bravery-production-e9f7.up.railway.app/api/auth/callback",
+  "https://app.arkticstudio.com/auth/callback",
+  "https://app.arkticstudio.com/auth/shopify/callback",
+  "https://app.arkticstudio.com/api/auth/callback",
 ]
 
 [webhooks]
