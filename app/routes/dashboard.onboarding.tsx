@@ -46,7 +46,7 @@ export default function Onboarding() {
   const navigate = useNavigate();
 
   const shopName = shop.replace(".myshopify.com", "");
-  const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`;
+  const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor`;
   const completedCount = [embedActive, hasExperiment, hasRunning, isPaid].filter(Boolean).length;
   const allDone = completedCount === 4;
 
@@ -56,7 +56,7 @@ export default function Onboarding() {
       number: "1",
       title: "Enable the Split Test embed",
       description:
-        "Open your Theme Editor, go to App embeds, and toggle on Split Tester. This loads the tracking script on your storefront — without it, no tests will run.",
+        "Open your Theme Editor, click the puzzle piece icon in the left sidebar to open App embeds, then toggle on Split Tester. This loads the tracking script on your storefront — without it, no tests will run.",
       note: embedActive
         ? "Embed is active — we've received your first storefront event."
         : "After enabling, visit any page on your store. The status here updates automatically.",
