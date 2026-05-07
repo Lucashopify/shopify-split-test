@@ -450,9 +450,8 @@ export default function ExperimentDetail() {
             const cvr = sessions > 0 ? (orders / sessions * 100).toFixed(1) + "%" : "—";
             const liftPct = resultRows.find((r) => r.variantId === v.id)?._max.liftPct;
             const isControl = v.isControl;
-            const variantColor = isControl ? "#6366f1" : ["#3b82f6", "#06b6d4", "#10b981", "#f59e0b"][experiment.variants.filter(vv => !vv.isControl).indexOf(v)] ?? "#3b82f6";
             return (
-              <div key={v.id} style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1rem 1.25rem", background: "#fff", borderTop: `3px solid ${variantColor}` }}>
+              <div key={v.id} style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1rem 1.25rem", background: "#fff" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.75rem" }}>
                   {editingVariantId === v.id ? (
                     <input
@@ -902,55 +901,40 @@ function ConclusionBanner({
 function FunnelBar({ funnel }: { funnel: { visitors: number; sessions: number; atc: number; checkout: number; orders: number; revenue: number } }) {
   const { visitors, sessions, atc, checkout, orders, revenue } = funnel;
   const rate = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : "—");
-  const max = visitors || 1;
-  const colors = ["#6366f1", "#3b82f6", "#06b6d4", "#10b981", "#16a34a", "#15803d"];
   const steps = [
-    { label: "Visitors", value: visitors, raw: visitors, sub: null },
-    { label: "Sessions", value: sessions, raw: sessions, sub: rate(sessions, visitors) },
-    { label: "Add to Cart", value: atc, raw: atc, sub: rate(atc, sessions) },
-    { label: "Checkout", value: checkout, raw: checkout, sub: rate(checkout, atc) },
-    { label: "Orders", value: orders, raw: orders, sub: rate(orders, sessions) },
-    { label: "Revenue", value: revenue > 0 ? `$${revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—", raw: revenue > 0 ? orders : 0, sub: orders > 0 ? `$${(revenue / orders).toFixed(2)} AOV` : null },
+    { label: "Visitors", value: visitors, sub: null },
+    { label: "Sessions", value: sessions, sub: rate(sessions, visitors) },
+    { label: "Add to Cart", value: atc, sub: rate(atc, sessions) },
+    { label: "Checkout", value: checkout, sub: rate(checkout, atc) },
+    { label: "Orders", value: orders, sub: rate(orders, sessions) },
+    { label: "Revenue", value: revenue > 0 ? `$${revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—", sub: orders > 0 ? `$${(revenue / orders).toFixed(2)} AOV` : null },
   ];
 
   return (
     <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden", marginBottom: "1.5rem" }}>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}>
-        {steps.map((s, i) => {
-          const fillPct = Math.min(100, Math.round((s.raw / max) * 100));
-          const color = colors[i];
-          return (
-            <div
-              key={s.label}
-              style={{
-                padding: "1rem 1.25rem 0.875rem",
-                borderRight: i < steps.length - 1 ? "1px solid #e9e9e9" : "none",
-                position: "relative",
-              }}
-            >
-              <div style={{ fontSize: "0.64rem", color: "#bbb", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.3rem" }}>{s.label}</div>
-              <div style={{ fontSize: "1.2rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.2rem" }}>
-                {typeof s.value === "number" ? s.value.toLocaleString() : s.value}
-              </div>
-              {s.sub ? (
-                <div style={{ fontSize: "0.68rem", color: "#aaa", marginBottom: "0.625rem" }}>{s.sub} conv.</div>
-              ) : (
-                <div style={{ marginBottom: "0.625rem", height: "0.95rem" }} />
-              )}
-              {/* Drop-off bar */}
-              <div style={{ height: 3, borderRadius: 2, background: "#f3f3f3", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${fillPct}%`, background: color, borderRadius: 2, transition: "width 0.4s ease" }} />
-              </div>
-              <div style={{ fontSize: "0.6rem", color: color, marginTop: "0.25rem", fontWeight: 600, opacity: visitors > 0 ? 1 : 0 }}>
-                {fillPct}%
-              </div>
+        {steps.map((s, i) => (
+          <div
+            key={s.label}
+            style={{
+              padding: "1rem 1.25rem",
+              borderRight: i < steps.length - 1 ? "1px solid #e9e9e9" : "none",
+              position: "relative",
+            }}
+          >
+            <div style={{ fontSize: "0.68rem", color: "#bbb", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.3rem" }}>{s.label}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111" }}>
+              {typeof s.value === "number" ? s.value.toLocaleString() : s.value}
             </div>
-          );
-        })}
+            {s.sub && (
+              <div style={{ fontSize: "0.7rem", color: "#aaa", marginTop: "0.15rem" }}>{s.sub} conversion</div>
+            )}
+          </div>
+        ))}
       </div>
-      {/* Summary row */}
+      {/* Drop-off bar */}
       {sessions > 0 && (
-        <div style={{ background: "#fafafa", borderTop: "1px solid #f0f0f0", padding: "0.5rem 1.25rem", display: "flex", gap: "1.5rem", alignItems: "center" }}>
+        <div style={{ background: "#f9f9f9", borderTop: "1px solid #f3f3f3", padding: "0.5rem 1.25rem", display: "flex", gap: "1.5rem", alignItems: "center" }}>
           <span style={{ fontSize: "0.7rem", color: "#bbb" }}>Overall CVR</span>
           <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#111" }}>{rate(orders, sessions)}</span>
           <span style={{ fontSize: "0.7rem", color: "#bbb", marginLeft: "1rem" }}>Revenue / visitor</span>
