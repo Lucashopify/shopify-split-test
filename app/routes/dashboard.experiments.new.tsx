@@ -149,16 +149,16 @@ export default function NewExperiment() {
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
 
-  const THEME_COLORS = ["#6366f1","#f59e0b","#10b981","#3b82f6","#ec4899","#8b5cf6","#14b8a6","#f97316"];
-  const themeOptions = [
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  // Variant B can't be the live theme — control is already the live theme
+  const variantThemeOptions = [
     { label: "— Select a theme —", value: "" },
-    ...themes.map((t, i) => ({
-      label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`,
-      value: t.id,
-      iconUrl: t.iconUrl ?? undefined,
-      iconInitial: t.iconUrl ? undefined : t.name.charAt(0).toUpperCase(),
-      iconColor: t.iconUrl ? undefined : THEME_COLORS[i % THEME_COLORS.length],
-    })),
+    ...themes
+      .filter((t) => t.role !== "MAIN")
+      .map((t) => ({
+        label: `${t.name} · edited ${fmtDate(t.updatedAt)}`,
+        value: t.id,
+      })),
   ];
 
   const handleSubmit = useCallback(() => {
@@ -268,7 +268,7 @@ export default function NewExperiment() {
               The control uses your live theme. Select the theme to test for {variantName || "Variant B"}.
             </p>
             <label style={label}>{variantName || "Variant B"} theme</label>
-            <Select style={input} value={variantThemeId} onChange={setVariantThemeId} options={themeOptions} />
+            <Select style={input} value={variantThemeId} onChange={setVariantThemeId} options={variantThemeOptions} />
           </div>
         )}
 

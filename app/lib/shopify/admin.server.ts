@@ -72,7 +72,7 @@ export async function getThemes(
     role: string;
     createdAt: string;
     updatedAt: string;
-  }>).filter((t) => t.role !== "DEMO");
+  }>).filter((t) => t.role !== "DEMO" && t.name !== "App ext. host");
 
   const screenshotKey = process.env.SCREENSHOTONE_ACCESS_KEY;
 

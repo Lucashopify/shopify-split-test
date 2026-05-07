@@ -146,9 +146,12 @@ export default function VariantEditor() {
     submit(fd, { method: "post" });
   }, [name, trafficWeight, themeId, redirectUrl, priceAdjType, priceAdjValue, customLiquid, type, submit]);
 
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const themeOptions = [
     { label: "— Select a theme —", value: "" },
-    ...themes.map((t) => ({ label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`, value: t.id })),
+    ...themes
+      .filter((t) => t.role !== "MAIN")
+      .map((t) => ({ label: `${t.name} · edited ${fmtDate(t.updatedAt)}`, value: t.id })),
   ];
 
   return (
