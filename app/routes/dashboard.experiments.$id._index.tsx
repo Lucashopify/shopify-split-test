@@ -268,6 +268,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return { ok: true };
   }
 
+  if (intent === "rename_variant") {
+    const variantId = String(formData.get("variantId") ?? "");
+    const name = String(formData.get("name") ?? "").trim();
+    if (variantId && name) {
+      await prisma.variant.update({ where: { id: variantId }, data: { name } });
+    }
+    return { ok: true };
+  }
+
   if (intent === "force_rollup") {
     const { runRollup } = await import("../lib/rollup.server");
     await runRollup(exp.id);
@@ -307,6 +316,9 @@ export default function ExperimentDetail() {
   const [tab, setTab] = useState(0);
   const [selectedSegmentId, setSelectedSegmentId] = useState(experiment.segment?.id ?? "");
   const [runtimeDaysSetting, setRuntimeDaysSetting] = useState(String(experiment.minimumRuntimeDays ?? 7));
+  const renameFetcher = useFetcher();
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const status = experiment.status as ExperimentStatus;
   const type = experiment.type as ExperimentType;
@@ -412,8 +424,31 @@ export default function ExperimentDetail() {
             return (
               <div key={v.id} style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1rem 1.25rem", background: "#fff" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.75rem" }}>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111" }}>{v.name}</span>
-                  {isControl && <span style={{ fontSize: "0.6rem", color: "#999", background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.35rem" }}>control</span>}
+                  {editingVariantId === v.id ? (
+                    <input
+                      autoFocus
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onBlur={() => {
+                        if (editingName.trim() && editingName.trim() !== v.name) {
+                          renameFetcher.submit({ intent: "rename_variant", variantId: v.id, name: editingName.trim() }, { method: "post" });
+                        }
+                        setEditingVariantId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Escape") { setEditingVariantId(null); }
+                      }}
+                      style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111", border: "none", borderBottom: "1px solid #aaa", outline: "none", background: "transparent", width: "100%", padding: 0 }}
+                    />
+                  ) : (
+                    <span
+                      title="Click to rename"
+                      onClick={() => { setEditingVariantId(v.id); setEditingName(v.name); }}
+                      style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111", cursor: "text" }}
+                    >{v.name}</span>
+                  )}
+                  {isControl && <span style={{ fontSize: "0.6rem", color: "#999", background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.35rem", flexShrink: 0 }}>control</span>}
                   {!isControl && liftPct != null && (
                     <span style={{ fontSize: "0.7rem", fontWeight: 600, color: liftPct > 0 ? "#16a34a" : liftPct < 0 ? "#dc2626" : "#999", marginLeft: "auto" }}>
                       {liftPct > 0 ? "+" : ""}{(liftPct * 100).toFixed(1)}%
