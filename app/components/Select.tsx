@@ -124,7 +124,7 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
               }}
             >
               {opt.iconUrl || opt.iconInitial ? (
-                <span style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: opt.iconColor ?? "#e9e9e9", fontSize: "0.65rem", fontWeight: 700, color: "#fff" }}>
+                <span style={{ flexShrink: 0, width: 48, height: 36, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: opt.iconColor ?? "#e9e9e9", fontSize: "0.65rem", fontWeight: 700, color: "#fff" }}>
                   {opt.iconUrl
                     ? <img src={opt.iconUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     : opt.iconInitial}

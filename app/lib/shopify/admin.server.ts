@@ -77,13 +77,15 @@ export async function getThemes(
   const iconUrls = await Promise.all(
     numericIds.map(async (numId) => {
       try {
-        const r = await restFetch(`/themes/${numId}/assets.json?asset[key]=assets/icon.png`);
-        const body = await r.json() as { asset?: { public_url?: string } };
-        console.log(`[theme-icon] theme=${numId} status=${r.status}`, JSON.stringify(body).slice(0, 200));
-        if (!r.ok) return null;
-        return body.asset?.public_url ?? null;
-      } catch (e) {
-        console.log(`[theme-icon] theme=${numId} error:`, e);
+        // Try preview.png first (full screenshot), fall back to icon.png
+        for (const key of ["assets/preview.png", "assets/screenshot.png", "assets/icon.png"]) {
+          const r = await restFetch(`/themes/${numId}/assets.json?asset[key]=${key}`);
+          if (!r.ok) continue;
+          const body = await r.json() as { asset?: { public_url?: string } };
+          if (body.asset?.public_url) return body.asset.public_url;
+        }
+        return null;
+      } catch {
         return null;
       }
     }),
