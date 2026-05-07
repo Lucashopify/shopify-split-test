@@ -304,6 +304,18 @@ function StatusDonut({ slices }: { slices: { status: string; count: number }[] }
   );
 }
 
+function smoothPath(coords: { x: number; y: number }[]): string {
+  if (coords.length === 0) return "";
+  if (coords.length === 1) return `M${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+  let d = `M${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+  for (let i = 1; i < coords.length; i++) {
+    const p = coords[i - 1], c = coords[i];
+    const cpx = ((p.x + c.x) / 2).toFixed(1);
+    d += ` C${cpx},${p.y.toFixed(1)} ${cpx},${c.y.toFixed(1)} ${c.x.toFixed(1)},${c.y.toFixed(1)}`;
+  }
+  return d;
+}
+
 function LineChart({
   points,
   color = "#111",
@@ -316,20 +328,24 @@ function LineChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const max = Math.max(...points.map((p) => p.value), 1);
-  const W = 320, H = 80, PAD = 4;
+  const W = 320, H = 90, PAD_L = 4, PAD_R = 4, PAD_T = 14, PAD_B = 4;
   const gradId = `lg-${color.replace("#", "")}`;
+
   const coords = points.map((p, i) => ({
-    x: PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2),
-    y: H - PAD - (p.value / max) * (H - PAD * 2),
+    x: PAD_L + (i / Math.max(points.length - 1, 1)) * (W - PAD_L - PAD_R),
+    y: PAD_T + (1 - p.value / max) * (H - PAD_T - PAD_B),
   }));
-  const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
-  const fillD = pathD + ` L${(W - PAD).toFixed(1)},${H - PAD} L${PAD},${H - PAD} Z`;
+
+  const pathD = smoothPath(coords);
+  const fillD = coords.length > 0
+    ? pathD + ` L${(W - PAD_R).toFixed(1)},${H - PAD_B} L${PAD_L},${H - PAD_B} Z`
+    : "";
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current || points.length < 2) return;
     const rect = svgRef.current.getBoundingClientRect();
     const relX = (e.clientX - rect.left) / rect.width;
-    const svgX = PAD + relX * (W - PAD * 2);
+    const svgX = PAD_L + relX * (W - PAD_L - PAD_R);
     let closest = 0, minDist = Infinity;
     coords.forEach((c, i) => {
       const d = Math.abs(c.x - svgX);
@@ -338,17 +354,20 @@ function LineChart({
     setHoverIdx(closest);
   }, [coords, points.length]);
 
-  const stride = Math.max(1, Math.floor(points.length / 6));
+  const stride = Math.max(1, Math.floor(points.length / 5));
   const labelPoints = points.filter((_, i) => i === 0 || i === points.length - 1 || i % stride === 0);
-
-  const fmtDate = (d: string) => {
-    const dt = new Date(d + "T00:00:00");
-    return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
+  const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   const hoverPt = hoverIdx !== null ? points[hoverIdx] : null;
   const hoverCoord = hoverIdx !== null ? coords[hoverIdx] : null;
-  const tooltipLeftPct = hoverCoord ? Math.min(Math.max((hoverCoord.x / W) * 100, 10), 90) : 0;
+
+  // Y-axis: 3 reference lines
+  const yLines = [0.25, 0.5, 0.75, 1].map(f => ({
+    y: PAD_T + (1 - f) * (H - PAD_T - PAD_B),
+    label: valueFormatter ? valueFormatter(max * f) : (max * f).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+  }));
+
+  const PILL_W = 74, PILL_H = 20, PILL_R = 10;
 
   return (
     <div style={{ position: "relative", userSelect: "none" }}>
@@ -362,48 +381,44 @@ function LineChart({
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.12} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        {[0.25, 0.5, 0.75, 1].map((f) => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#f0f0f0" strokeWidth={1} strokeDasharray="3 3" />
+
+        {/* Y-axis dashed grid */}
+        {yLines.map((l) => (
+          <line key={l.y} x1={PAD_L} x2={W - PAD_R} y1={l.y} y2={l.y} stroke="#ebebeb" strokeWidth={1} strokeDasharray="4 3" />
         ))}
+
         <path d={fillD} fill={`url(#${gradId})`} />
-        <path d={pathD} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        {hoverCoord !== null && (
+        <path d={pathD} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" />
+
+        {/* Hover vertical line + dot */}
+        {hoverCoord && (
           <>
-            <line x1={hoverCoord.x} x2={hoverCoord.x} y1={PAD} y2={H - PAD} stroke={color} strokeWidth={1} strokeDasharray="3 2" opacity={0.3} />
-            <circle cx={hoverCoord.x} cy={hoverCoord.y} r={4.5} fill="#fff" stroke={color} strokeWidth={2} />
+            <line x1={hoverCoord.x} x2={hoverCoord.x} y1={PAD_T} y2={H - PAD_B} stroke="#ccc" strokeWidth={1} strokeDasharray="3 2" />
+            <circle cx={hoverCoord.x} cy={hoverCoord.y} r={4} fill="#fff" stroke={color} strokeWidth={2} />
+            {/* Dark pill tooltip at the point */}
+            {hoverPt && (() => {
+              const px = Math.min(Math.max(hoverCoord.x, PILL_W / 2 + 2), W - PILL_W / 2 - 2);
+              const py = hoverCoord.y - PILL_H - 8;
+              const label = valueFormatter ? valueFormatter(hoverPt.value) : hoverPt.value.toLocaleString();
+              return (
+                <g>
+                  <rect x={px - PILL_W / 2} y={py} width={PILL_W} height={PILL_H} rx={PILL_R} fill="#111" />
+                  <text x={px} y={py + PILL_H * 0.68} textAnchor="middle" fill="#fff" fontSize={10} fontWeight={600} fontFamily="inherit">{label}</text>
+                </g>
+              );
+            })()}
           </>
         )}
       </svg>
-      {hoverPt !== null && hoverCoord !== null && (
-        <div style={{
-          position: "absolute",
-          top: -8,
-          left: `${tooltipLeftPct}%`,
-          transform: "translateX(-50%)",
-          background: "#111",
-          color: "#fff",
-          padding: "0.3rem 0.65rem",
-          borderRadius: 6,
-          fontSize: "0.7rem",
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-          zIndex: 10,
-          lineHeight: 1.6,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-        }}>
-          <div style={{ color: "#888" }}>{fmtDate(hoverPt.date)}</div>
-          <div style={{ fontWeight: 700, fontSize: "0.8125rem" }}>
-            {valueFormatter ? valueFormatter(hoverPt.value) : hoverPt.value.toLocaleString()}
-          </div>
-        </div>
-      )}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.35rem" }}>
+
+      {/* X-axis labels */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.3rem" }}>
         {labelPoints.map((p) => (
-          <span key={p.date} style={{ fontSize: "0.6rem", color: "#d0d0d0" }}>{fmtDate(p.date)}</span>
+          <span key={p.date} style={{ fontSize: "0.6rem", color: "#ccc" }}>{fmtDate(p.date)}</span>
         ))}
       </div>
     </div>
@@ -451,6 +466,8 @@ export default function DashboardIndex() {
     fontWeight: active ? 500 : 400,
   });
 
+  const CARD: React.CSSProperties = { background: "#fff", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)" };
+
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 1040, margin: "0 auto" }}>
 
@@ -482,25 +499,25 @@ export default function DashboardIndex() {
       </div>
 
       {/* Top stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", marginBottom: "1.5rem", border: "1px solid #e9e9e9", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", marginBottom: "1.25rem" }}>
         {[
           { label: "Running", value: String(activeExperiments) },
           { label: "Total experiments", value: String(totalExperiments) },
           { label: "Visitors tested", value: visitorsTested.toLocaleString() },
           { label: "Plan", value: billingPlan.replace(/_/g, " ") },
-        ].map((stat, i) => (
+        ].map((stat) => (
           <div
             key={stat.label}
-            style={{ padding: "1.25rem 1.5rem", borderRight: i < 3 ? "1px solid #e9e9e9" : "none", position: "relative", cursor: "default", background: hoveredStat === stat.label ? "#fafafa" : "#fff", transition: "background 0.15s" }}
+            style={{ ...CARD, padding: "1.25rem 1.5rem", position: "relative", cursor: "default" }}
             onMouseEnter={() => setHoveredStat(stat.label)}
             onMouseLeave={() => setHoveredStat(null)}
           >
-            <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>{stat.label}</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111" }}>{stat.value}</div>
+            <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.4rem" }}>{stat.label}</div>
+            <div style={{ fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.04em", color: "#111" }}>{stat.value}</div>
             {hoveredStat === stat.label && (
               <div style={{
                 position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
-                background: "#111", color: "#fff", padding: "0.3rem 0.6rem", borderRadius: 5,
+                background: "#111", color: "#fff", padding: "0.3rem 0.6rem", borderRadius: 6,
                 fontSize: "0.7rem", whiteSpace: "normal" as const, pointerEvents: "none", zIndex: 20, lineHeight: 1.5,
                 maxWidth: 220, textAlign: "center",
               }}>
@@ -512,22 +529,19 @@ export default function DashboardIndex() {
       </div>
 
       {/* Row 1: Events sparkline + Revenue sparkline */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        {/* Events */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Events · last {rangeLabel}</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.75rem" }}>{totalEvents.toLocaleString()}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem" }}>
+          <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.2rem" }}>Events · last {rangeLabel}</div>
+          <div style={{ fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.04em", color: "#111", marginBottom: "0.875rem" }}>{totalEvents.toLocaleString()}</div>
           <LineChart
             points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))}
             color="#6366f1"
-            valueFormatter={(v) => v.toLocaleString() + " events"}
+            valueFormatter={(v) => v.toLocaleString()}
           />
         </div>
-
-        {/* Revenue */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Revenue attributed · last {rangeLabel}</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.75rem" }}>{fmtRangeRevenue}</div>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem" }}>
+          <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.2rem" }}>Revenue attributed · last {rangeLabel}</div>
+          <div style={{ fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.04em", color: "#111", marginBottom: "0.875rem" }}>{fmtRangeRevenue}</div>
           <LineChart
             points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))}
             color="#16a34a"
@@ -537,18 +551,15 @@ export default function DashboardIndex() {
       </div>
 
       {/* Row 2: Funnel + Events by type */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        {/* Conversion funnel */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Conversion funnel · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#bbb", marginBottom: "0.75rem" }}>Across all experiments</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem" }}>
+          <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.15rem" }}>Conversion funnel · {rangeLabel}</div>
+          <div style={{ fontSize: "0.75rem", color: "#ccc", marginBottom: "0.875rem" }}>Across all experiments</div>
           <FunnelChart steps={funnel} />
         </div>
-
-        {/* Events by type */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Events by type · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#bbb", marginBottom: "0.75rem" }}>All tracked event types</div>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem" }}>
+          <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.15rem" }}>Events by type · {rangeLabel}</div>
+          <div style={{ fontSize: "0.75rem", color: "#ccc", marginBottom: "0.875rem" }}>All tracked event types</div>
           <BarChart
             bars={eventsByType.map((e: { type: string; count: number }) => ({
               label: TYPE_LABELS[e.type] ?? e.type,
@@ -560,24 +571,21 @@ export default function DashboardIndex() {
       </div>
 
       {/* Row 3: Experiment status breakdown + Total revenue card */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "2.5rem" }}>
-        {/* Status breakdown */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.1rem" }}>Experiments by status</div>
-          <div style={{ fontSize: "0.75rem", color: "#bbb", marginBottom: "0.5rem" }}>All time</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "2.5rem" }}>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem" }}>
+          <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.15rem" }}>Experiments by status</div>
+          <div style={{ fontSize: "0.75rem", color: "#ccc", marginBottom: "0.5rem" }}>All time</div>
           <StatusDonut slices={experimentsByStatus} />
         </div>
-
-        {/* Total attributed revenue */}
-        <div style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ ...CARD, padding: "1.375rem 1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.25rem" }}>Total attributed revenue</div>
-            <div style={{ fontSize: "1.75rem", fontWeight: 600, letterSpacing: "-0.03em", color: "#111", marginBottom: "0.5rem" }}>{fmtRevenue}</div>
-            <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.5 }}>Revenue from orders matched to an experiment variant via first-party visitor tracking.</div>
+            <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.2rem" }}>Total attributed revenue</div>
+            <div style={{ fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.04em", color: "#111", marginBottom: "0.5rem" }}>{fmtRevenue}</div>
+            <div style={{ fontSize: "0.75rem", color: "#aaa", lineHeight: 1.6 }}>Revenue from orders matched to an experiment variant via first-party visitor tracking.</div>
           </div>
           <button
             onClick={() => navigate("/dashboard/results")}
-            style={{ alignSelf: "flex-start", marginTop: "1rem", fontSize: "0.75rem", color: "#111", background: "none", border: "1px solid #e9e9e9", borderRadius: 5, padding: "0.3rem 0.75rem", cursor: "pointer" }}
+            style={{ alignSelf: "flex-start", marginTop: "1rem", fontSize: "0.75rem", color: "#111", background: "none", border: "1px solid #e9e9e9", borderRadius: 6, padding: "0.3rem 0.75rem", cursor: "pointer" }}
           >
             View results →
           </button>
