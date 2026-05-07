@@ -4,6 +4,7 @@ export type SelectOption = {
   value: string;
   label: string;
   disabled?: boolean;
+  badge?: string;
 };
 
 type SelectProps = {
@@ -96,10 +97,14 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
               style={{
                 padding: "0.5rem 0.75rem",
                 fontSize: "0.875rem",
-                color: opt.disabled ? "#ccc" : opt.value === value ? "#111" : "#444",
+                color: opt.disabled ? "#bbb" : opt.value === value ? "#111" : "#444",
                 background: opt.value === value ? "#f5f5f5" : "#fff",
                 cursor: opt.disabled ? "default" : "pointer",
                 userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
               }}
               onMouseEnter={(e) => {
                 if (!opt.disabled) (e.currentTarget as HTMLDivElement).style.background = opt.value === value ? "#f0f0f0" : "#fafafa";
@@ -108,7 +113,21 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
                 (e.currentTarget as HTMLDivElement).style.background = opt.value === value ? "#f5f5f5" : "#fff";
               }}
             >
-              {opt.label}
+              <span>{opt.label}</span>
+              {opt.badge && (
+                <span style={{
+                  fontSize: "0.65rem",
+                  fontWeight: 600,
+                  color: "#aaa",
+                  background: "#f3f3f3",
+                  borderRadius: 4,
+                  padding: "0.1rem 0.4rem",
+                  letterSpacing: "0.03em",
+                  flexShrink: 0,
+                }}>
+                  {opt.badge}
+                </span>
+              )}
             </div>
           ))}
         </div>
