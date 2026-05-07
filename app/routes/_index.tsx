@@ -46,22 +46,87 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Index() {
   const data = useLoaderData<{ shop?: string }>();
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>Split Tester</h1>
-      <p>Enter your Shopify store domain to continue.</p>
-      <Form method="post">
-        <input
-          type="text"
-          name="shop"
-          placeholder="your-store.myshopify.com"
-          style={{ padding: "0.5rem", marginRight: "0.5rem", width: "280px" }}
-        />
-        <button type="submit" style={{ padding: "0.5rem 1rem" }}>
-          Open app
-        </button>
-      </Form>
-      {data?.shop === "MISSING_SHOP" && <p style={{ color: "red" }}>Please enter a shop domain.</p>}
-      {data?.shop === "INVALID_SHOP" && <p style={{ color: "red" }}>Invalid shop domain.</p>}
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#f9f9f9",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    }}>
+      <div style={{ width: "100%", maxWidth: 380, padding: "0 1.5rem" }}>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem", justifyContent: "center" }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>
+            A
+          </div>
+          <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>Arktic</span>
+        </div>
+
+        {/* Card */}
+        <div style={{ background: "#fff", border: "1px solid #e9e9e9", borderRadius: 12, padding: "2rem" }}>
+          <h1 style={{ fontSize: "1.125rem", fontWeight: 600, color: "#111", margin: "0 0 0.375rem", letterSpacing: "-0.02em" }}>
+            Connect your store
+          </h1>
+          <p style={{ fontSize: "0.8125rem", color: "#999", margin: "0 0 1.5rem", lineHeight: 1.5 }}>
+            Enter your Shopify store domain to access your dashboard.
+          </p>
+
+          <Form method="post">
+            <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 500, color: "#555", marginBottom: "0.375rem" }}>
+              Store domain
+            </label>
+            <input
+              type="text"
+              name="shop"
+              placeholder="your-store.myshopify.com"
+              autoComplete="off"
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "1px solid #e9e9e9",
+                borderRadius: 6,
+                fontSize: "0.875rem",
+                color: "#111",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: "1rem",
+                background: "#fff",
+              }}
+            />
+            {(data?.shop === "MISSING_SHOP" || data?.shop === "INVALID_SHOP") && (
+              <p style={{ fontSize: "0.75rem", color: "#dc2626", margin: "-0.5rem 0 0.75rem" }}>
+                {data.shop === "MISSING_SHOP" ? "Please enter your store domain." : "Invalid store domain."}
+              </p>
+            )}
+            <button
+              type="submit"
+              style={{
+                width: "100%",
+                padding: "0.55rem 1rem",
+                background: "#111",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                cursor: "pointer",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Continue →
+            </button>
+          </Form>
+        </div>
+
+        <p style={{ textAlign: "center", fontSize: "0.75rem", color: "#bbb", marginTop: "1.25rem" }}>
+          Access Arktic from your{" "}
+          <a href="https://admin.shopify.com" style={{ color: "#aaa", textDecoration: "none" }}>
+            Shopify Admin → Apps
+          </a>
+        </p>
+      </div>
     </div>
   );
 }
