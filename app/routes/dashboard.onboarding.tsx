@@ -83,12 +83,16 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
 
-  // Re-check when merchant returns from Theme Editor tab
+  // Poll every 4 s while embed is not active, also re-check on window focus
   React.useEffect(() => {
     if (embedActive) return;
     const handler = () => revalidate();
     window.addEventListener("focus", handler);
-    return () => window.removeEventListener("focus", handler);
+    const timer = setInterval(() => revalidate(), 4000);
+    return () => {
+      window.removeEventListener("focus", handler);
+      clearInterval(timer);
+    };
   }, [embedActive, revalidate]);
 
   // Deep link — pre-toggles the embed block so merchant just clicks Save
@@ -117,7 +121,7 @@ export default function Onboarding() {
       description:
         "Choose what to test — a theme, price, section content, URL redirect, or page template. Set a hypothesis, configure your variants, and define your traffic split.",
       note: hasExperiment ? "You have at least one experiment created." : null,
-      cta: "Create experiment",
+      cta: "New experiment",
       action: () => navigate("/dashboard/experiments/new"),
     },
     {

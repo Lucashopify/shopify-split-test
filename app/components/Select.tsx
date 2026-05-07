@@ -5,6 +5,9 @@ export type SelectOption = {
   label: string;
   disabled?: boolean;
   badge?: string;
+  iconUrl?: string;
+  iconInitial?: string;
+  iconColor?: string;
 };
 
 type SelectProps = {
@@ -64,6 +67,13 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
           transition: "border-color 0.15s",
         }}
       >
+        {selected?.iconUrl || selected?.iconInitial ? (
+          <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: selected.iconColor ?? "#e9e9e9", fontSize: "0.65rem", fontWeight: 700, color: "#fff" }}>
+            {selected.iconUrl
+              ? <img src={selected.iconUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : selected.iconInitial}
+          </span>
+        ) : null}
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selected?.label ?? placeholder ?? "Select…"}
         </span>
@@ -113,6 +123,13 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
                 (e.currentTarget as HTMLDivElement).style.background = opt.value === value ? "#f5f5f5" : "#fff";
               }}
             >
+              {opt.iconUrl || opt.iconInitial ? (
+                <span style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: opt.iconColor ?? "#e9e9e9", fontSize: "0.65rem", fontWeight: 700, color: "#fff" }}>
+                  {opt.iconUrl
+                    ? <img src={opt.iconUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    : opt.iconInitial}
+                </span>
+              ) : null}
               <span>{opt.label}</span>
               {opt.badge && (
                 <span style={{

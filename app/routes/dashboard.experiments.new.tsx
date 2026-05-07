@@ -19,7 +19,7 @@ const EXPERIMENT_TYPES = [
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, shop, restFetch } = await requireDashboardSession(request);
   const [themes, templateFiles] = await Promise.all([
-    getThemes(admin).catch(() => [] as Array<{ id: string; name: string; role: string }>),
+    getThemes(admin, restFetch).catch(() => [] as Array<{ id: string; name: string; role: string; iconUrl: string | null }>),
     getThemeTemplateFiles(restFetch).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
   ]);
   const dbShop = await prisma.shop.findUnique({ where: { shopDomain: shop } });
@@ -149,9 +149,16 @@ export default function NewExperiment() {
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
 
+  const THEME_COLORS = ["#6366f1","#f59e0b","#10b981","#3b82f6","#ec4899","#8b5cf6","#14b8a6","#f97316"];
   const themeOptions = [
     { label: "— Select a theme —", value: "" },
-    ...themes.map((t) => ({ label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`, value: t.id })),
+    ...themes.map((t, i) => ({
+      label: `${t.name}${t.role === "MAIN" ? " (Live)" : ""}`,
+      value: t.id,
+      iconUrl: t.iconUrl ?? undefined,
+      iconInitial: t.iconUrl ? undefined : t.name.charAt(0).toUpperCase(),
+      iconColor: t.iconUrl ? undefined : THEME_COLORS[i % THEME_COLORS.length],
+    })),
   ];
 
   const handleSubmit = useCallback(() => {

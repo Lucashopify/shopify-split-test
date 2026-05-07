@@ -43,11 +43,12 @@ export async function duplicateTheme(
 }
 
 /**
- * Fetch all themes for the shop.
+ * Fetch all themes for the shop, including their thumbnail URL (assets/icon.png public_url).
  */
-export async function getThemes(admin: {
-  graphql: (query: string) => Promise<Response>;
-}) {
+export async function getThemes(
+  admin: { graphql: (query: string) => Promise<Response> },
+  restFetch: (path: string, init?: RequestInit) => Promise<Response>,
+) {
   const response = await admin.graphql(`
     query GetThemes {
       themes(first: 50) {
@@ -63,13 +64,32 @@ export async function getThemes(admin: {
   `);
 
   const { data } = await response.json();
-  return data.themes.nodes as Array<{
+  const nodes = (data.themes.nodes as Array<{
     id: string;
     name: string;
     role: string;
     createdAt: string;
     updatedAt: string;
-  }>;
+  }>).filter((t) => t.role !== "DEMO");
+
+  // Fetch icon.png for each theme in parallel — this is the same thumbnail Shopify uses in their admin
+  const numericIds = nodes.map((t) => t.id.split("/").pop()!);
+  const iconUrls = await Promise.all(
+    numericIds.map(async (numId) => {
+      try {
+        const r = await restFetch(`/themes/${numId}/assets.json?asset[key]=assets/icon.png`);
+        const body = await r.json() as { asset?: { public_url?: string } };
+        console.log(`[theme-icon] theme=${numId} status=${r.status}`, JSON.stringify(body).slice(0, 200));
+        if (!r.ok) return null;
+        return body.asset?.public_url ?? null;
+      } catch (e) {
+        console.log(`[theme-icon] theme=${numId} error:`, e);
+        return null;
+      }
+    }),
+  );
+
+  return nodes.map((t, i) => ({ ...t, iconUrl: iconUrls[i] }));
 }
 
 /**

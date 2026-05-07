@@ -21,10 +21,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const variant = experiment.variants.find((v) => v.id === params.variantId);
   if (!variant) throw new Response("Variant not found", { status: 404 });
 
-  let themes: Array<{ id: string; name: string; role: string }> = [];
+  let themes: Array<{ id: string; name: string; role: string; iconUrl: string | null }> = [];
   let templateFiles: Array<{ filename: string; type: string; view: string }> = [];
   if (experiment.type === "THEME") {
-    try { themes = await getThemes(admin); } catch {}
+    try { themes = await getThemes(admin, restFetch); } catch {}
   } else if (experiment.type === "TEMPLATE") {
     try { templateFiles = await getThemeTemplateFiles(restFetch); } catch {}
   }
