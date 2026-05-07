@@ -197,25 +197,33 @@ function Sparkline({ points, color = "#111" }: { points: number[]; color?: strin
 
 function FunnelChart({ steps }: { steps: { label: string; count: number }[] }) {
   const max = Math.max(...steps.map((s) => s.count), 1);
+  const colors = ["#6366f1", "#f59e0b", "#3b82f6", "#16a34a"];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.5rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", marginTop: "0.5rem" }}>
       {steps.map((step, i) => {
         const pct = (step.count / max) * 100;
         const convRate = i > 0 && steps[i - 1].count > 0
           ? ((step.count / steps[i - 1].count) * 100).toFixed(1)
           : null;
-        const colors = ["#6366f1", "#f59e0b", "#3b82f6", "#16a34a"];
+        const color = colors[i] ?? "#6366f1";
         return (
           <div key={step.label}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem" }}>
-              <span style={{ fontSize: "0.75rem", color: "#555" }}>{step.label}</span>
-              <span style={{ fontSize: "0.75rem", color: "#111", fontWeight: 500 }}>
-                {step.count.toLocaleString()}
-                {convRate && <span style={{ color: "#aaa", fontWeight: 400, marginLeft: "0.4rem" }}>({convRate}%)</span>}
-              </span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: "inline-block", flexShrink: 0 }} />
+                <span style={{ fontSize: "0.75rem", color: "#555" }}>{step.label}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {convRate && (
+                  <span style={{ fontSize: "0.68rem", color: "#aaa", background: "#f5f5f5", borderRadius: 3, padding: "0.1rem 0.35rem" }}>
+                    ↓ {convRate}%
+                  </span>
+                )}
+                <span style={{ fontSize: "0.75rem", color: "#111", fontWeight: 600 }}>{step.count.toLocaleString()}</span>
+              </div>
             </div>
-            <div style={{ background: "#f3f3f3", borderRadius: 4, height: 6, overflow: "hidden" }}>
-              <div style={{ width: `${pct}%`, height: "100%", background: colors[i] ?? "#6366f1", borderRadius: 4, transition: "width 0.3s" }} />
+            <div style={{ background: "#f0f0f0", borderRadius: 5, height: 8, overflow: "hidden" }}>
+              <div style={{ width: `${pct}%`, height: "100%", background: `linear-gradient(90deg, ${color}99, ${color})`, borderRadius: 5, transition: "width 0.4s ease" }} />
             </div>
           </div>
         );
@@ -226,20 +234,24 @@ function FunnelChart({ steps }: { steps: { label: string; count: number }[] }) {
 
 function BarChart({ bars }: { bars: { label: string; count: number; color: string }[] }) {
   const max = Math.max(...bars.map((b) => b.count), 1);
+  const visible = bars.filter((b) => b.count > 0);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginTop: "0.5rem" }}>
-      {bars.filter((b) => b.count > 0).map((bar) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", marginTop: "0.5rem" }}>
+      {visible.map((bar) => (
         <div key={bar.label}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "#555" }}>{bar.label}</span>
-            <span style={{ fontSize: "0.75rem", color: "#111", fontWeight: 500 }}>{bar.count.toLocaleString()}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: bar.color, display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontSize: "0.75rem", color: "#555" }}>{bar.label}</span>
+            </div>
+            <span style={{ fontSize: "0.75rem", color: "#111", fontWeight: 600 }}>{bar.count.toLocaleString()}</span>
           </div>
-          <div style={{ background: "#f3f3f3", borderRadius: 4, height: 6, overflow: "hidden" }}>
-            <div style={{ width: `${(bar.count / max) * 100}%`, height: "100%", background: bar.color, borderRadius: 4 }} />
+          <div style={{ background: "#f0f0f0", borderRadius: 5, height: 8, overflow: "hidden" }}>
+            <div style={{ width: `${(bar.count / max) * 100}%`, height: "100%", background: `linear-gradient(90deg, ${bar.color}99, ${bar.color})`, borderRadius: 5, transition: "width 0.4s ease" }} />
           </div>
         </div>
       ))}
-      {bars.every((b) => b.count === 0) && (
+      {visible.length === 0 && (
         <p style={{ fontSize: "0.75rem", color: "#bbb", margin: 0 }}>No data yet</p>
       )}
     </div>
@@ -279,12 +291,12 @@ function StatusDonut({ slices }: { slices: { status: string; count: number }[] }
         ))}
         <text x={CX} y={CY + 5} textAnchor="middle" style={{ fontSize: 14, fontWeight: 600, fill: "#111" }}>{total}</text>
       </svg>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
         {slices.map((s) => (
-          <div key={s.status} style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: "#555" }}>
+          <div key={s.status} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.75rem", color: "#555" }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: STATUS_COLORS[s.status] ?? "#ccc", flexShrink: 0 }} />
-            <span style={{ textTransform: "capitalize" }}>{s.status.toLowerCase()}</span>
-            <span style={{ color: "#aaa", marginLeft: "auto", paddingLeft: "0.75rem" }}>{s.count}</span>
+            <span style={{ textTransform: "capitalize", flex: 1 }}>{s.status.toLowerCase()}</span>
+            <span style={{ color: "#111", fontWeight: 600, minWidth: 20, textAlign: "right" }}>{s.count}</span>
           </div>
         ))}
       </div>
@@ -304,17 +316,14 @@ function LineChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const max = Math.max(...points.map((p) => p.value), 1);
-  const W = 320, H = 72, PAD = 4;
+  const W = 320, H = 80, PAD = 4;
+  const gradId = `lg-${color.replace("#", "")}`;
   const coords = points.map((p, i) => ({
     x: PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2),
     y: H - PAD - (p.value / max) * (H - PAD * 2),
   }));
   const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
-  const fillPts = [
-    `${PAD},${H - PAD}`,
-    ...coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`),
-    `${(W - PAD).toFixed(1)},${H - PAD}`,
-  ].join(" ");
+  const fillD = pathD + ` L${(W - PAD).toFixed(1)},${H - PAD} L${PAD},${H - PAD} Z`;
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current || points.length < 2) return;
@@ -329,7 +338,6 @@ function LineChart({
     setHoverIdx(closest);
   }, [coords, points.length]);
 
-  // Label stride — show ~6 labels regardless of range
   const stride = Math.max(1, Math.floor(points.length / 6));
   const labelPoints = points.filter((_, i) => i === 0 || i === points.length - 1 || i % stride === 0);
 
@@ -340,7 +348,6 @@ function LineChart({
 
   const hoverPt = hoverIdx !== null ? points[hoverIdx] : null;
   const hoverCoord = hoverIdx !== null ? coords[hoverIdx] : null;
-  // tooltip left as % of SVG width, clamped so it doesn't overflow
   const tooltipLeftPct = hoverCoord ? Math.min(Math.max((hoverCoord.x / W) * 100, 10), 90) : 0;
 
   return (
@@ -353,20 +360,24 @@ function LineChart({
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}
       >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
         {[0.25, 0.5, 0.75, 1].map((f) => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#f0f0f0" strokeWidth={1} />
+          <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#f0f0f0" strokeWidth={1} strokeDasharray="3 3" />
         ))}
-        <polygon points={fillPts} fill={color} fillOpacity={0.08} />
-        <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-        {/* hover elements */}
+        <path d={fillD} fill={`url(#${gradId})`} />
+        <path d={pathD} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {hoverCoord !== null && (
           <>
-            <line x1={hoverCoord.x} x2={hoverCoord.x} y1={PAD} y2={H - PAD} stroke={color} strokeWidth={1} strokeDasharray="3 2" opacity={0.35} />
-            <circle cx={hoverCoord.x} cy={hoverCoord.y} r={4} fill="#fff" stroke={color} strokeWidth={2} />
+            <line x1={hoverCoord.x} x2={hoverCoord.x} y1={PAD} y2={H - PAD} stroke={color} strokeWidth={1} strokeDasharray="3 2" opacity={0.3} />
+            <circle cx={hoverCoord.x} cy={hoverCoord.y} r={4.5} fill="#fff" stroke={color} strokeWidth={2} />
           </>
         )}
       </svg>
-      {/* Tooltip */}
       {hoverPt !== null && hoverCoord !== null && (
         <div style={{
           position: "absolute",
@@ -375,24 +386,24 @@ function LineChart({
           transform: "translateX(-50%)",
           background: "#111",
           color: "#fff",
-          padding: "0.3rem 0.6rem",
-          borderRadius: 5,
+          padding: "0.3rem 0.65rem",
+          borderRadius: 6,
           fontSize: "0.7rem",
           whiteSpace: "nowrap",
           pointerEvents: "none",
           zIndex: 10,
-          lineHeight: 1.5,
+          lineHeight: 1.6,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
         }}>
-          <div style={{ color: "#aaa" }}>{fmtDate(hoverPt.date)}</div>
-          <div style={{ fontWeight: 600, fontSize: "0.8125rem" }}>
+          <div style={{ color: "#888" }}>{fmtDate(hoverPt.date)}</div>
+          <div style={{ fontWeight: 700, fontSize: "0.8125rem" }}>
             {valueFormatter ? valueFormatter(hoverPt.value) : hoverPt.value.toLocaleString()}
           </div>
         </div>
       )}
-      {/* X-axis labels */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.25rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.35rem" }}>
         {labelPoints.map((p) => (
-          <span key={p.date} style={{ fontSize: "0.6rem", color: "#ccc" }}>{fmtDate(p.date)}</span>
+          <span key={p.date} style={{ fontSize: "0.6rem", color: "#d0d0d0" }}>{fmtDate(p.date)}</span>
         ))}
       </div>
     </div>
