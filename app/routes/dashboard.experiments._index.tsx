@@ -43,8 +43,66 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prisma.experiment.count({ where }),
   ]);
 
-  return { experiments, total };
+  // Fetch best result per experiment (highest lift treatment variant)
+  const expIds = experiments.map((e) => e.id);
+  const resultRows = expIds.length > 0
+    ? await prisma.experimentResult.groupBy({
+        by: ["experimentId"],
+        where: { experimentId: { in: expIds } },
+        _min: { pValue: true },
+        _max: { liftPct: true, sessions: true },
+      })
+    : [];
+
+  const resultByExp = new Map(resultRows.map((r) => [r.experimentId, r]));
+
+  const enriched = experiments.map((exp) => {
+    const res = resultByExp.get(exp.id);
+    return {
+      ...exp,
+      result: res
+        ? { pValue: res._min.pValue, liftPct: res._max.liftPct, sessions: res._max.sessions }
+        : null,
+    };
+  });
+
+  return { experiments: enriched, total };
 };
+
+function ResultBadge({
+  status,
+  result,
+}: {
+  status: ExperimentStatus;
+  result: { pValue: number | null; liftPct: number | null; sessions: number | null } | null;
+}) {
+  if (status === "DRAFT") return <span style={{ color: "#bbb", fontSize: "0.75rem" }}>—</span>;
+
+  if (!result || result.sessions == null || result.sessions < 100) {
+    return (
+      <span style={{ fontSize: "0.75rem", color: "#aaa" }}>Collecting data</span>
+    );
+  }
+
+  const significant = result.pValue != null && result.pValue < 0.05;
+  const lift = result.liftPct;
+
+  if (significant && lift != null) {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 500, color: lift >= 0 ? "#16a34a" : "#dc2626" }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: lift >= 0 ? "#16a34a" : "#dc2626", flexShrink: 0, display: "inline-block" }} />
+        Significant · {lift >= 0 ? "+" : ""}{(lift * 100).toFixed(1)}%
+      </span>
+    );
+  }
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: "#d97706" }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0, display: "inline-block" }} />
+      Not significant
+    </span>
+  );
+}
 
 const TYPE_LABELS: Record<string, string> = {
   THEME: "Theme",
@@ -167,6 +225,7 @@ export default function ExperimentsIndex() {
                 <th style={th}>Name</th>
                 <th style={th}>Type</th>
                 <th style={th}>Status</th>
+                <th style={th}>Result</th>
                 <th style={th}>Variants</th>
                 <th style={{ ...th, textAlign: "right" }}>Visitors</th>
                 <th style={{ ...th, textAlign: "right" }}>Updated</th>
@@ -189,6 +248,9 @@ export default function ExperimentsIndex() {
                   </td>
                   <td style={td}>
                     <ExperimentStatusBadge status={exp.status as ExperimentStatus} />
+                  </td>
+                  <td style={td}>
+                    <ResultBadge status={exp.status as ExperimentStatus} result={exp.result} />
                   </td>
                   <td style={{ ...td, color: "#777" }}>{exp.variants.length}</td>
                   <td style={{ ...td, textAlign: "right", color: "#777" }}>{exp._count.allocations.toLocaleString()}</td>

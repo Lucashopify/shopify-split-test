@@ -152,9 +152,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Sample size needed (based on control CVR, detect 5% lift)
     const samplesNeeded = control ? sampleSizeNeeded(control.cvr) : null;
 
-    // Days running (use updatedAt as proxy; ideally startAt but not in query)
-    const createdMs = exp.updatedAt.getTime();
-    const daysRunning = Math.max(0, Math.round((Date.now() - createdMs) / 86400000));
+    // Days running since experiment started
+    const daysRunning = exp.startAt
+      ? Math.max(0, Math.round((Date.now() - new Date(exp.startAt).getTime()) / 86400000))
+      : 0;
 
     return {
       id: exp.id,
