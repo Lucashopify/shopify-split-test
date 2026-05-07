@@ -4,24 +4,52 @@ import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
 
+const EMBED_TYPE = "shopify://apps/split-test/blocks/split-test-embed";
+
+async function isEmbedEnabled(
+  restFetch: (path: string, init?: RequestInit) => Promise<Response>,
+): Promise<boolean> {
+  try {
+    const themesResp = await restFetch("/themes.json?role=main");
+    if (!themesResp.ok) return false;
+    const { themes } = await themesResp.json() as { themes: { id: number }[] };
+    const theme = themes?.[0];
+    if (!theme) return false;
+
+    const assetResp = await restFetch(
+      `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
+    );
+    if (!assetResp.ok) return false;
+    const { asset } = await assetResp.json() as { asset: { value: string } };
+    const settings = JSON.parse(asset.value);
+    const blocks = settings?.current?.blocks ?? {};
+    return Object.values(blocks).some(
+      (b: unknown) => (b as { type: string; disabled?: boolean }).type === EMBED_TYPE &&
+        (b as { disabled?: boolean }).disabled !== true,
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, setCookie } = await requireDashboardSession(request);
+  const { session, setCookie, restFetch } = await requireDashboardSession(request);
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  const [experimentCount, runningCount, eventCount, planLimits] = await Promise.all([
+  const [experimentCount, runningCount, planLimits, embedEnabled] = await Promise.all([
     prisma.experiment.count({ where: { shopId: shop.id } }),
     prisma.experiment.count({ where: { shopId: shop.id, status: "RUNNING" } }),
-    prisma.event.count({ where: { shopId: shop.id }, take: 1 }),
     getPlanLimits(shop.id),
+    isEmbedEnabled(restFetch),
   ]);
 
   return Response.json(
     {
       shop: session.shop,
       myshopifyDomain: shop.myshopifyDomain ?? session.shop,
-      embedActive: eventCount > 0,
+      embedActive: embedEnabled,
       hasExperiment: experimentCount > 0,
       hasRunning: runningCount > 0,
       isPaid: planLimits.planName !== "free_trial",
