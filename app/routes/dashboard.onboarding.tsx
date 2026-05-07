@@ -107,9 +107,9 @@ export default function Onboarding() {
     {
       done: embedActive,
       number: "1",
-      title: "Enable the Split Test embed",
+      title: "Enable the Arktic embed",
       description:
-        "Click Enable embed — it opens your Theme Editor with the Split Test toggle pre-activated. Just click Save and you're done.",
+        "Click Enable embed — it opens your Theme Editor with the Arktic toggle pre-activated. Just click Save and you're done.",
       note: embedActive
         ? "Embed is active — we've received your first storefront event."
         : "After saving in the Theme Editor, visit any page on your store then refresh this page.",
