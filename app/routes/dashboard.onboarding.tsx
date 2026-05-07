@@ -12,23 +12,28 @@ async function isEmbedEnabled(
 ): Promise<boolean> {
   try {
     const themesResp = await restFetch("/themes.json?role=main");
-    if (!themesResp.ok) return false;
-    const { themes } = await themesResp.json() as { themes: { id: number }[] };
+    if (!themesResp.ok) { console.log("[embed-check] themes fetch failed:", themesResp.status); return false; }
+    const { themes } = await themesResp.json() as { themes: { id: number; name: string }[] };
     const theme = themes?.[0];
-    if (!theme) return false;
+    if (!theme) { console.log("[embed-check] no theme found"); return false; }
+    console.log("[embed-check] theme:", theme.id, theme.name);
 
     const assetResp = await restFetch(
       `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
     );
-    if (!assetResp.ok) return false;
+    if (!assetResp.ok) { console.log("[embed-check] asset fetch failed:", assetResp.status); return false; }
     const { asset } = await assetResp.json() as { asset: { value: string } };
     const settings = JSON.parse(asset.value);
     const blocks = settings?.current?.blocks ?? {};
-    return Object.values(blocks).some(
+    console.log("[embed-check] blocks:", JSON.stringify(blocks).slice(0, 300));
+    const enabled = Object.values(blocks).some(
       (b: unknown) => (b as { type: string; disabled?: boolean }).type === EMBED_TYPE &&
         (b as { disabled?: boolean }).disabled !== true,
     );
-  } catch {
+    console.log("[embed-check] enabled:", enabled);
+    return enabled;
+  } catch (e) {
+    console.log("[embed-check] error:", e);
     return false;
   }
 }
