@@ -357,16 +357,24 @@ export default function ResultsPage() {
                             </td>
 
                             {/* Confidence */}
-                            <td style={{ ...TD }}>
+                            <td style={{ ...TD, minWidth: 110 }}>
                               {v.isControl ? (
                                 <span style={{ color: "#ccc", fontSize: "0.75rem" }}>—</span>
                               ) : conf !== null ? (
-                                <span style={{
-                                  fontWeight: 600,
-                                  color: conf >= 95 ? "#16a34a" : conf >= 80 ? "#d97706" : "#aaa",
-                                }}>
-                                  {conf}%
-                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                  <div style={{ flex: 1, height: 5, borderRadius: 3, background: "#f0f0f0", overflow: "hidden", minWidth: 60 }}>
+                                    <div style={{
+                                      height: "100%",
+                                      width: `${conf}%`,
+                                      borderRadius: 3,
+                                      background: conf >= 95 ? "#16a34a" : conf >= 80 ? "#f59e0b" : "#d1d5db",
+                                      transition: "width 0.4s ease",
+                                    }} />
+                                  </div>
+                                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: conf >= 95 ? "#16a34a" : conf >= 80 ? "#d97706" : "#aaa", flexShrink: 0 }}>
+                                    {conf}%
+                                  </span>
+                                </div>
                               ) : (
                                 <span style={{ color: "#ccc", fontSize: "0.75rem" }}>not enough data</span>
                               )}
