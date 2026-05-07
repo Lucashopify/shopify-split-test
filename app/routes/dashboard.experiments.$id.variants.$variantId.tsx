@@ -24,7 +24,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   let themes: Array<{ id: string; name: string; role: string; iconUrl: string | null }> = [];
   let templateFiles: Array<{ filename: string; type: string; view: string }> = [];
   if (experiment.type === "THEME") {
-    try { themes = await getThemes(admin, restFetch); } catch {}
+    try { themes = await getThemes(admin, restFetch, session.shop); } catch {}
   } else if (experiment.type === "TEMPLATE") {
     try { templateFiles = await getThemeTemplateFiles(restFetch); } catch {}
   }

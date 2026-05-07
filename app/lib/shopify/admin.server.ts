@@ -43,11 +43,13 @@ export async function duplicateTheme(
 }
 
 /**
- * Fetch all themes for the shop, including their thumbnail URL (assets/icon.png public_url).
+ * Fetch all themes for the shop, with screenshot URLs via Screenshotone.
+ * Set SCREENSHOTONE_ACCESS_KEY in env to enable real screenshots.
  */
 export async function getThemes(
   admin: { graphql: (query: string) => Promise<Response> },
-  restFetch: (path: string, init?: RequestInit) => Promise<Response>,
+  _restFetch: (path: string, init?: RequestInit) => Promise<Response>,
+  shop?: string,
 ) {
   const response = await admin.graphql(`
     query GetThemes {
@@ -72,26 +74,28 @@ export async function getThemes(
     updatedAt: string;
   }>).filter((t) => t.role !== "DEMO");
 
-  // Fetch icon.png for each theme in parallel — this is the same thumbnail Shopify uses in their admin
-  const numericIds = nodes.map((t) => t.id.split("/").pop()!);
-  const iconUrls = await Promise.all(
-    numericIds.map(async (numId) => {
-      try {
-        // Try preview.png first (full screenshot), fall back to icon.png
-        for (const key of ["assets/preview.png", "assets/screenshot.png", "assets/icon.png"]) {
-          const r = await restFetch(`/themes/${numId}/assets.json?asset[key]=${key}`);
-          if (!r.ok) continue;
-          const body = await r.json() as { asset?: { public_url?: string } };
-          if (body.asset?.public_url) return body.asset.public_url;
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    }),
-  );
+  const screenshotKey = process.env.SCREENSHOTONE_ACCESS_KEY;
 
-  return nodes.map((t, i) => ({ ...t, iconUrl: iconUrls[i] }));
+  return nodes.map((t) => {
+    let iconUrl: string | null = null;
+    if (screenshotKey && shop) {
+      const numericId = t.id.split("/").pop()!;
+      const targetUrl = `https://${shop}/?preview_theme_id=${numericId}`;
+      const params = new URLSearchParams({
+        access_key: screenshotKey,
+        url: targetUrl,
+        viewport_width: "1440",
+        viewport_height: "900",
+        format: "webp",
+        image_quality: "70",
+        full_page: "false",
+        cache: "true",
+        cache_ttl: "2592000", // 30 days
+      });
+      iconUrl = `https://api.screenshotone.com/take?${params.toString()}`;
+    }
+    return { ...t, iconUrl };
+  });
 }
 
 /**
