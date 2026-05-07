@@ -1,87 +1,9 @@
-import { type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useFetcher } from "react-router";
+import { type LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
 
-// ---------------------------------------------------------------------------
-// Auto-enable the app embed via GraphQL themeFilesUpsert
-// ---------------------------------------------------------------------------
-const EMBED_TYPE = "shopify://apps/split-test/blocks/split-test-embed";
-
-type AdminClient = { graphql: (query: string, opts?: { variables?: Record<string, unknown> }) => Promise<Response> };
-type RestFetch = (path: string, init?: RequestInit) => Promise<Response>;
-
-async function enableEmbedInTheme(admin: AdminClient, restFetch: RestFetch): Promise<{ ok: boolean; message: string }> {
-  // 1. Get the main theme via REST (reliable)
-  const themesResp = await restFetch("/themes.json?role=main");
-  if (!themesResp.ok) return { ok: false, message: "Could not fetch themes" };
-  const { themes } = await themesResp.json() as { themes: { id: number }[] };
-  const theme = themes?.[0];
-  if (!theme) return { ok: false, message: "No active theme found" };
-  const themeGid = `gid://shopify/OnlineStoreTheme/${theme.id}`;
-  console.log("[embed] themeId:", theme.id);
-
-  // 2. Read settings_data.json via REST (exact key match, reliable)
-  const assetResp = await restFetch(
-    `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
-  );
-  if (!assetResp.ok) return { ok: false, message: "Could not read theme settings" };
-  const { asset } = await assetResp.json() as { asset: { value: string } };
-  console.log("[embed] settings_data preview:", asset?.value?.slice(0, 80));
-
-  let settings: Record<string, unknown>;
-  try {
-    settings = JSON.parse(asset.value);
-  } catch (e) {
-    return { ok: false, message: `Could not parse theme settings: ${String(e)}` };
-  }
-
-  // 3. Check if already enabled
-  const current = (settings.current ?? {}) as Record<string, unknown>;
-  const blocks = (current.blocks ?? {}) as Record<string, { type: string; disabled?: boolean; settings?: Record<string, unknown> }>;
-  const existingKey = Object.keys(blocks).find((k) => blocks[k].type === EMBED_TYPE);
-  if (existingKey && blocks[existingKey].disabled !== true) {
-    return { ok: true, message: "already_enabled" };
-  }
-
-  // 4. Add or re-enable the block
-  if (existingKey) {
-    blocks[existingKey].disabled = false;
-  } else {
-    const uid = crypto.randomUUID();
-    blocks[`${EMBED_TYPE}/${uid}`] = { type: EMBED_TYPE, disabled: false, settings: {} };
-  }
-  current.blocks = blocks;
-  settings.current = current;
-
-  // 5. Save via GraphQL themeFilesUpsert
-  const upsertResp = await admin.graphql(`
-    mutation UpsertThemeFile($themeId: ID!, $files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
-      themeFilesUpsert(themeId: $themeId, files: $files) {
-        upsertedThemeFiles { filename }
-        userErrors { field message }
-      }
-    }
-  `, {
-    variables: {
-      themeId: themeGid,
-      files: [{ filename: "config/settings_data.json", body: { type: "TEXT", value: JSON.stringify(settings, null, 2) } }],
-    },
-  });
-  const { data: upsertData } = await upsertResp.json() as {
-    data: { themeFilesUpsert: { upsertedThemeFiles: { filename: string }[]; userErrors: { field: string; message: string }[] } }
-  };
-  console.log("[embed] upsert result:", JSON.stringify(upsertData?.themeFilesUpsert));
-  const errors = upsertData?.themeFilesUpsert?.userErrors;
-  if (errors?.length) return { ok: false, message: errors.map((e) => e.message).join(", ") };
-
-  return { ok: true, message: "enabled" };
-}
-
-// ---------------------------------------------------------------------------
-// Loader
-// ---------------------------------------------------------------------------
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, setCookie } = await requireDashboardSession(request);
 
@@ -98,27 +20,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return Response.json(
     {
       shop: session.shop,
+      myshopifyDomain: shop.myshopifyDomain ?? session.shop,
       embedActive: eventCount > 0,
       hasExperiment: experimentCount > 0,
       hasRunning: runningCount > 0,
       isPaid: planLimits.planName !== "free_trial",
+      apiKey: process.env.SHOPIFY_API_KEY ?? "",
     },
     { headers: { "Set-Cookie": setCookie } },
   );
 };
 
-// ---------------------------------------------------------------------------
-// Action
-// ---------------------------------------------------------------------------
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, restFetch, setCookie } = await requireDashboardSession(request);
-  const result = await enableEmbedInTheme(admin, restFetch);
-  return Response.json(result, { headers: { "Set-Cookie": setCookie } });
-};
-
-// ---------------------------------------------------------------------------
-// UI
-// ---------------------------------------------------------------------------
 const checkStyle: React.CSSProperties = {
   width: 22,
   height: 22,
@@ -132,18 +44,17 @@ const checkStyle: React.CSSProperties = {
 };
 
 export default function Onboarding() {
-  const { shop, embedActive, hasExperiment, hasRunning, isPaid } = useLoaderData<typeof loader>();
+  const { shop, myshopifyDomain, embedActive, hasExperiment, hasRunning, isPaid, apiKey } =
+    useLoaderData<typeof loader>();
   const navigate = useNavigate();
-  const embedFetcher = useFetcher<{ ok: boolean; message: string }>();
 
+  // Deep link — pre-toggles the embed block so merchant just clicks Save
   const shopName = shop.replace(".myshopify.com", "");
+  const embedDeepLink = `https://${myshopifyDomain}/admin/themes/current/editor?context=apps&activateAppId=${apiKey}/split-test-embed`;
   const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor`;
+
   const completedCount = [embedActive, hasExperiment, hasRunning, isPaid].filter(Boolean).length;
   const allDone = completedCount === 4;
-
-  const embedEnabling = embedFetcher.state !== "idle";
-  const embedResult = embedFetcher.data;
-  const embedSucceeded = embedResult?.ok && embedResult.message !== "already_enabled" ? true : false;
 
   const steps = [
     {
@@ -151,10 +62,10 @@ export default function Onboarding() {
       number: "1",
       title: "Enable the Split Test embed",
       description:
-        "Click Enable embed and we'll activate the tracking script on your storefront automatically. Without it, no tests will run.",
+        "Click Enable embed — it opens your Theme Editor with the Split Test toggle pre-activated. Just click Save and you're done.",
       note: embedActive
         ? "Embed is active — we've received your first storefront event."
-        : "After enabling, visit any page on your store to confirm it's working.",
+        : "After saving in the Theme Editor, visit any page on your store then refresh this page.",
     },
     {
       done: hasExperiment,
@@ -202,16 +113,11 @@ export default function Onboarding() {
         <div style={{ marginTop: "1.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{ flex: 1, height: 4, borderRadius: 2, background: "#f3f3f3", overflow: "hidden" }}>
             <div style={{
-              height: "100%",
-              borderRadius: 2,
-              background: "#111",
-              width: `${(completedCount / 4) * 100}%`,
-              transition: "width 0.4s ease",
+              height: "100%", borderRadius: 2, background: "#111",
+              width: `${(completedCount / 4) * 100}%`, transition: "width 0.4s ease",
             }} />
           </div>
-          <span style={{ fontSize: "0.75rem", color: "#999", flexShrink: 0 }}>
-            {completedCount} / 4 complete
-          </span>
+          <span style={{ fontSize: "0.75rem", color: "#999", flexShrink: 0 }}>{completedCount} / 4 complete</span>
         </div>
       </div>
 
@@ -219,17 +125,10 @@ export default function Onboarding() {
       {allDone && (
         <div style={{ marginBottom: "1.5rem", padding: "1rem 1.25rem", background: "#f3f3f3", border: "1px solid #e9e9e9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
           <div>
-            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111", marginBottom: "0.2rem" }}>
-              You're all set
-            </div>
-            <div style={{ fontSize: "0.8125rem", color: "#555" }}>
-              Your experiment is live. Check the Results tab to see data as it comes in.
-            </div>
+            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111", marginBottom: "0.2rem" }}>You're all set</div>
+            <div style={{ fontSize: "0.8125rem", color: "#555" }}>Your experiment is live. Check the Results tab to see data as it comes in.</div>
           </div>
-          <button
-            onClick={() => navigate("/dashboard/experiments")}
-            style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", flexShrink: 0 }}
-          >
+          <button onClick={() => navigate("/dashboard/experiments")} style={{ padding: "0.4rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer", flexShrink: 0 }}>
             View experiments
           </button>
         </div>
@@ -241,43 +140,26 @@ export default function Onboarding() {
           <div
             key={i}
             style={{
-              border: "1px solid #e9e9e9",
-              borderRadius: 10,
-              padding: "1.25rem 1.5rem",
-              background: step.done ? "#fafafa" : "#fff",
-              display: "flex",
-              gap: "1.125rem",
-              alignItems: "flex-start",
+              border: "1px solid #e9e9e9", borderRadius: 10, padding: "1.25rem 1.5rem",
+              background: step.done ? "#fafafa" : "#fff", display: "flex", gap: "1.125rem", alignItems: "flex-start",
             }}
           >
-            <div style={{
-              ...checkStyle,
-              background: step.done ? "#111" : "#f3f3f3",
-              color: step.done ? "#fff" : "#aaa",
-              marginTop: "0.1rem",
-            }}>
+            <div style={{ ...checkStyle, background: step.done ? "#111" : "#f3f3f3", color: step.done ? "#fff" : "#aaa", marginTop: "0.1rem" }}>
               {step.done ? "✓" : step.number}
             </div>
 
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", marginBottom: "0.4rem" }}>
-                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111" }}>
-                  {step.title}
-                </div>
-                {/* Step 1 — embed toggle */}
+                <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#111" }}>{step.title}</div>
                 {i === 0 && !step.done && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
-                    <embedFetcher.Form method="post">
-                      <button
-                        type="submit"
-                        disabled={embedEnabling || embedSucceeded}
-                        style={{ padding: "0.35rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: embedEnabling ? "default" : "pointer", opacity: embedEnabling ? 0.6 : 1 }}
-                      >
-                        {embedEnabling ? "Enabling…" : embedSucceeded ? "Enabled" : "Enable embed"}
-                      </button>
-                    </embedFetcher.Form>
+                  <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
                     <button
-                      type="button"
+                      onClick={() => window.open(embedDeepLink, "_blank")}
+                      style={{ padding: "0.35rem 0.875rem", background: "#111", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Enable embed
+                    </button>
+                    <button
                       onClick={() => window.open(themeEditorUrl, "_blank")}
                       style={{ padding: "0.35rem 0.875rem", background: "none", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}
                     >
@@ -285,7 +167,6 @@ export default function Onboarding() {
                     </button>
                   </div>
                 )}
-                {/* Other steps */}
                 {"cta" in step && !step.done && (
                   <button
                     onClick={(step as { action: () => void }).action}
@@ -295,19 +176,7 @@ export default function Onboarding() {
                   </button>
                 )}
               </div>
-              <p style={{ margin: "0 0 0.5rem", fontSize: "0.8125rem", color: "#666", lineHeight: 1.6 }}>
-                {step.description}
-              </p>
-              {embedResult && !embedResult.ok && i === 0 && (
-                <p style={{ margin: "0 0 0.5rem", fontSize: "0.75rem", color: "#dc2626" }}>
-                  {embedResult.message}
-                </p>
-              )}
-              {embedSucceeded && i === 0 && (
-                <p style={{ margin: "0 0 0.5rem", fontSize: "0.75rem", color: "#16a34a" }}>
-                  Embed enabled — visit any storefront page to confirm, then refresh this page.
-                </p>
-              )}
+              <p style={{ margin: "0 0 0.5rem", fontSize: "0.8125rem", color: "#666", lineHeight: 1.6 }}>{step.description}</p>
               {step.note && (
                 <p style={{ margin: 0, fontSize: "0.75rem", color: step.done ? "#555" : "#aaa" }}>
                   {step.done ? "✓ " : ""}{step.note}
@@ -324,10 +193,7 @@ export default function Onboarding() {
           <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#111", marginBottom: "0.2rem" }}>Need help?</div>
           <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Learn how each experiment type works and how to read your results.</div>
         </div>
-        <a
-          href="mailto:support@splittester.com"
-          style={{ padding: "0.35rem 0.875rem", background: "none", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer", textDecoration: "none", flexShrink: 0 }}
-        >
+        <a href="mailto:support@splittester.com" style={{ padding: "0.35rem 0.875rem", background: "none", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer", textDecoration: "none", flexShrink: 0 }}>
           Contact support
         </a>
       </div>
