@@ -378,6 +378,48 @@ export default function ExperimentDetail() {
         </div>
       </div>
 
+      {/* Per-variant metric cards */}
+      {status !== "DRAFT" && (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${experiment.variants.length}, 1fr)`, gap: "0.75rem", marginBottom: "1rem" }}>
+          {experiment.variants.map((v) => {
+            const res = resultRows.find((r) => r.variantId === v.id);
+            const live = liveOrders.find((o) => o.variantId === v.id);
+            const sessions = res?._sum.sessions ?? 0;
+            const orders = Math.max(res?._sum.conversionCount ?? 0, live?._count.id ?? 0);
+            const revenue = Math.max(res?._sum.revenue ?? 0, live?._sum.revenue ?? 0);
+            const cvr = sessions > 0 ? (orders / sessions * 100).toFixed(1) + "%" : "—";
+            const liftPct = res?._max.liftPct;
+            const isControl = v.isControl;
+            return (
+              <div key={v.id} style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1rem 1.25rem", background: "#fff" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.75rem" }}>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#111" }}>{v.name}</span>
+                  {isControl && <span style={{ fontSize: "0.6rem", color: "#999", background: "#f3f3f3", borderRadius: 3, padding: "0.1rem 0.35rem" }}>control</span>}
+                  {!isControl && liftPct != null && (
+                    <span style={{ fontSize: "0.7rem", fontWeight: 600, color: liftPct > 0 ? "#16a34a" : liftPct < 0 ? "#dc2626" : "#999", marginLeft: "auto" }}>
+                      {liftPct > 0 ? "+" : ""}{(liftPct * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
+                  {[
+                    { label: "Sessions", value: sessions.toLocaleString() },
+                    { label: "CVR", value: cvr },
+                    { label: "Orders", value: orders.toLocaleString() },
+                    { label: "Revenue", value: revenue > 0 ? `$${revenue.toFixed(2)}` : "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: "0.65rem", color: "#bbb", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.15rem" }}>{label}</div>
+                      <div style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Funnel overview */}
       <FunnelBar funnel={funnel} />
 
