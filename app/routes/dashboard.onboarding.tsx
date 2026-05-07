@@ -45,7 +45,8 @@ export default function Onboarding() {
   const { shop, embedActive, hasExperiment, hasRunning, isPaid } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
-  const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps`;
+  const shopName = shop.replace(".myshopify.com", "");
+  const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps`;
   const completedCount = [embedActive, hasExperiment, hasRunning, isPaid].filter(Boolean).length;
   const allDone = completedCount === 4;
 
