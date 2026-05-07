@@ -15,7 +15,8 @@ async function enableEmbedInTheme(
   // 1. Get the main (active) theme
   const themesResp = await restFetch("/themes.json?role=main");
   if (!themesResp.ok) return { ok: false, message: "Could not fetch themes" };
-  const { themes } = await themesResp.json() as { themes: { id: number }[] };
+  const { themes } = await themesResp.json() as { themes: { id: number; role: string; name: string }[] };
+  console.log("[embed] themes:", JSON.stringify(themes?.map(t => ({ id: t.id, role: t.role, name: t.name }))));
   const theme = themes?.[0];
   if (!theme) return { ok: false, message: "No active theme found" };
 
@@ -23,8 +24,10 @@ async function enableEmbedInTheme(
   const assetResp = await restFetch(
     `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
   );
+  const assetBody = await assetResp.text();
+  console.log("[embed] asset GET status:", assetResp.status, "body:", assetBody.slice(0, 300));
   if (!assetResp.ok) return { ok: false, message: "Could not fetch theme settings" };
-  const { asset } = await assetResp.json() as { asset: { value: string } };
+  const { asset } = JSON.parse(assetBody) as { asset: { value: string } };
   let settings: Record<string, unknown>;
   try {
     settings = JSON.parse(asset.value);
@@ -55,9 +58,10 @@ async function enableEmbedInTheme(
     method: "PUT",
     body: JSON.stringify({ asset: { key: "config/settings_data.json", value: JSON.stringify(settings) } }),
   });
+  const updateBody = await updateResp.text();
+  console.log("[embed] PUT status:", updateResp.status, "body:", updateBody.slice(0, 300));
   if (!updateResp.ok) {
-    const text = await updateResp.text();
-    return { ok: false, message: `Failed to save: ${text}` };
+    return { ok: false, message: `Failed to save: ${updateBody}` };
   }
 
   return { ok: true, message: "enabled" };
