@@ -34,13 +34,33 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     orderBy: { createdAt: "desc" },
   });
 
-  // Funnel stats for the overview bar
-  const [pageViews, atcCount, checkoutCount, revenueAgg] = await Promise.all([
+  // Funnel stats for the overview bar + per-variant breakdown
+  const [pageViews, atcCount, checkoutCount, revenueAgg, variantEvents, variantOrders] = await Promise.all([
     prisma.event.count({ where: { experimentId: experiment.id, type: "PAGE_VIEW" } }),
     prisma.event.count({ where: { experimentId: experiment.id, type: "ADD_TO_CART" } }),
     prisma.event.count({ where: { experimentId: experiment.id, type: "INITIATE_CHECKOUT" } }),
     prisma.order.aggregate({ where: { experimentId: experiment.id }, _sum: { revenue: true } }),
+    prisma.event.groupBy({
+      by: ["variantId", "type"],
+      where: { experimentId: experiment.id, type: { in: ["PAGE_VIEW", "ADD_TO_CART", "INITIATE_CHECKOUT"] } },
+      _count: { id: true },
+    }),
+    prisma.order.groupBy({
+      by: ["variantId"],
+      where: { experimentId: experiment.id },
+      _count: { id: true },
+      _sum: { revenue: true },
+    }),
   ]);
+
+  // Shape into per-variant stats
+  const variantStats = experiment.variants.map((v) => {
+    const sessions = variantEvents.find((e) => e.variantId === v.id && e.type === "PAGE_VIEW")?._count.id ?? 0;
+    const atc = variantEvents.find((e) => e.variantId === v.id && e.type === "ADD_TO_CART")?._count.id ?? 0;
+    const checkout = variantEvents.find((e) => e.variantId === v.id && e.type === "INITIATE_CHECKOUT")?._count.id ?? 0;
+    const orderRow = variantOrders.find((o) => o.variantId === v.id);
+    return { variantId: v.id, sessions, atc, checkout, orders: orderRow?._count.id ?? 0, revenue: orderRow?._sum.revenue ?? 0 };
+  });
   const funnel = {
     visitors: experiment._count.allocations,
     sessions: pageViews,
@@ -183,7 +203,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   };
 
   const planLimits = await getPlanLimits(shop.id);
-  return data({ experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled }, { headers: { "Set-Cookie": setCookie } });
+  return data({ experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -278,7 +298,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results", "History"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders, funnel, breakdown, auditLogs, segmentsEnabled } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -382,13 +402,12 @@ export default function ExperimentDetail() {
       {status !== "DRAFT" && (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${experiment.variants.length}, 1fr)`, gap: "0.75rem", marginBottom: "1rem" }}>
           {experiment.variants.map((v) => {
-            const res = resultRows.find((r) => r.variantId === v.id);
-            const live = liveOrders.find((o) => o.variantId === v.id);
-            const sessions = res?._sum.sessions ?? 0;
-            const orders = Math.max(res?._sum.conversionCount ?? 0, live?._count.id ?? 0);
-            const revenue = Math.max(res?._sum.revenue ?? 0, live?._sum.revenue ?? 0);
+            const stats = variantStats.find((s) => s.variantId === v.id);
+            const sessions = stats?.sessions ?? 0;
+            const orders = stats?.orders ?? 0;
+            const revenue = stats?.revenue ?? 0;
             const cvr = sessions > 0 ? (orders / sessions * 100).toFixed(1) + "%" : "—";
-            const liftPct = res?._max.liftPct;
+            const liftPct = resultRows.find((r) => r.variantId === v.id)?._max.liftPct;
             const isControl = v.isControl;
             return (
               <div key={v.id} style={{ border: "1px solid #e9e9e9", borderRadius: 8, padding: "1rem 1.25rem", background: "#fff" }}>
