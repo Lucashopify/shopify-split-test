@@ -10,39 +10,31 @@ import { getPlanLimits } from "../lib/billing.server";
 const EMBED_TYPE = "shopify://apps/split-test/blocks/split-test-embed";
 
 type AdminClient = { graphql: (query: string, opts?: { variables?: Record<string, unknown> }) => Promise<Response> };
+type RestFetch = (path: string, init?: RequestInit) => Promise<Response>;
 
-async function enableEmbedInTheme(admin: AdminClient): Promise<{ ok: boolean; message: string }> {
-  // 1. Get the main theme ID
-  const themesResp = await admin.graphql(`
-    query { themes(first: 1, roles: [MAIN]) { nodes { id } } }
-  `);
-  const { data: themesData } = await themesResp.json() as { data: { themes: { nodes: { id: string }[] } } };
-  const themeId = themesData?.themes?.nodes?.[0]?.id;
-  console.log("[embed] themeId:", themeId);
-  if (!themeId) return { ok: false, message: "No active theme found" };
+async function enableEmbedInTheme(admin: AdminClient, restFetch: RestFetch): Promise<{ ok: boolean; message: string }> {
+  // 1. Get the main theme via REST (reliable)
+  const themesResp = await restFetch("/themes.json?role=main");
+  if (!themesResp.ok) return { ok: false, message: "Could not fetch themes" };
+  const { themes } = await themesResp.json() as { themes: { id: number }[] };
+  const theme = themes?.[0];
+  if (!theme) return { ok: false, message: "No active theme found" };
+  const themeGid = `gid://shopify/OnlineStoreTheme/${theme.id}`;
+  console.log("[embed] themeId:", theme.id);
 
-  // 2. Get settings_data.json
-  const fileResp = await admin.graphql(`
-    query GetThemeFile($themeId: ID!) {
-      theme(id: $themeId) {
-        files(filenames: ["config/settings_data.json"]) {
-          nodes { filename body { ... on OnlineStoreThemeFileBodyText { content } } }
-        }
-      }
-    }
-  `, { variables: { themeId } });
-  const { data: fileData } = await fileResp.json() as {
-    data: { theme: { files: { nodes: { filename: string; body: { content: string } }[] } } }
-  };
-  const fileContent = fileData?.theme?.files?.nodes?.[0]?.body?.content;
-  console.log("[embed] file content length:", fileContent?.length, "preview:", fileContent?.slice(0, 100));
-  if (!fileContent) return { ok: false, message: "Could not read theme settings" };
+  // 2. Read settings_data.json via REST (exact key match, reliable)
+  const assetResp = await restFetch(
+    `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
+  );
+  if (!assetResp.ok) return { ok: false, message: "Could not read theme settings" };
+  const { asset } = await assetResp.json() as { asset: { value: string } };
+  console.log("[embed] settings_data preview:", asset?.value?.slice(0, 80));
 
   let settings: Record<string, unknown>;
   try {
-    settings = JSON.parse(fileContent);
+    settings = JSON.parse(asset.value);
   } catch (e) {
-    return { ok: false, message: `Could not parse theme settings: ${String(e)} | preview: ${fileContent.slice(0, 80)}` };
+    return { ok: false, message: `Could not parse theme settings: ${String(e)}` };
   }
 
   // 3. Check if already enabled
@@ -63,7 +55,7 @@ async function enableEmbedInTheme(admin: AdminClient): Promise<{ ok: boolean; me
   current.blocks = blocks;
   settings.current = current;
 
-  // 5. Save via themeFilesUpsert
+  // 5. Save via GraphQL themeFilesUpsert
   const upsertResp = await admin.graphql(`
     mutation UpsertThemeFile($themeId: ID!, $files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
       themeFilesUpsert(themeId: $themeId, files: $files) {
@@ -73,7 +65,7 @@ async function enableEmbedInTheme(admin: AdminClient): Promise<{ ok: boolean; me
     }
   `, {
     variables: {
-      themeId,
+      themeId: themeGid,
       files: [{ filename: "config/settings_data.json", body: { type: "TEXT", value: JSON.stringify(settings, null, 2) } }],
     },
   });
@@ -119,8 +111,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // Action
 // ---------------------------------------------------------------------------
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, setCookie } = await requireDashboardSession(request);
-  const result = await enableEmbedInTheme(admin);
+  const { admin, restFetch, setCookie } = await requireDashboardSession(request);
+  const result = await enableEmbedInTheme(admin, restFetch);
   return Response.json(result, { headers: { "Set-Cookie": setCookie } });
 };
 
