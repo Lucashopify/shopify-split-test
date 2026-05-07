@@ -35,14 +35,14 @@ async function enableEmbedInTheme(admin: AdminClient): Promise<{ ok: boolean; me
     data: { theme: { files: { nodes: { filename: string; body: { content: string } }[] } } }
   };
   const fileContent = fileData?.theme?.files?.nodes?.[0]?.body?.content;
-  console.log("[embed] file content length:", fileContent?.length);
+  console.log("[embed] file content length:", fileContent?.length, "preview:", fileContent?.slice(0, 100));
   if (!fileContent) return { ok: false, message: "Could not read theme settings" };
 
   let settings: Record<string, unknown>;
   try {
     settings = JSON.parse(fileContent);
-  } catch {
-    return { ok: false, message: "Could not parse theme settings" };
+  } catch (e) {
+    return { ok: false, message: `Could not parse theme settings: ${String(e)} | preview: ${fileContent.slice(0, 80)}` };
   }
 
   // 3. Check if already enabled
