@@ -5,32 +5,42 @@ import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
 
 // ---------------------------------------------------------------------------
-// Auto-enable the app embed by patching the active theme's settings_data.json
+// Auto-enable the app embed via GraphQL themeFilesUpsert
 // ---------------------------------------------------------------------------
 const EMBED_TYPE = "shopify://apps/split-test/blocks/split-test-embed";
 
-async function enableEmbedInTheme(
-  restFetch: (path: string, init?: RequestInit) => Promise<Response>,
-): Promise<{ ok: boolean; message: string }> {
-  // 1. Get the main (active) theme
-  const themesResp = await restFetch("/themes.json?role=main");
-  if (!themesResp.ok) return { ok: false, message: "Could not fetch themes" };
-  const { themes } = await themesResp.json() as { themes: { id: number; role: string; name: string }[] };
-  console.log("[embed] themes:", JSON.stringify(themes?.map(t => ({ id: t.id, role: t.role, name: t.name }))));
-  const theme = themes?.[0];
-  if (!theme) return { ok: false, message: "No active theme found" };
+type AdminClient = { graphql: (query: string, opts?: { variables?: Record<string, unknown> }) => Promise<Response> };
+
+async function enableEmbedInTheme(admin: AdminClient): Promise<{ ok: boolean; message: string }> {
+  // 1. Get the main theme ID
+  const themesResp = await admin.graphql(`
+    query { themes(first: 1, roles: [MAIN]) { nodes { id } } }
+  `);
+  const { data: themesData } = await themesResp.json() as { data: { themes: { nodes: { id: string }[] } } };
+  const themeId = themesData?.themes?.nodes?.[0]?.id;
+  console.log("[embed] themeId:", themeId);
+  if (!themeId) return { ok: false, message: "No active theme found" };
 
   // 2. Get settings_data.json
-  const assetResp = await restFetch(
-    `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
-  );
-  const assetBody = await assetResp.text();
-  console.log("[embed] asset GET status:", assetResp.status, "body:", assetBody.slice(0, 300));
-  if (!assetResp.ok) return { ok: false, message: "Could not fetch theme settings" };
-  const { asset } = JSON.parse(assetBody) as { asset: { value: string } };
+  const fileResp = await admin.graphql(`
+    query GetThemeFile($themeId: ID!) {
+      theme(id: $themeId) {
+        files(filenames: ["config/settings_data.json"]) {
+          nodes { filename body { ... on OnlineStoreThemeFileBodyText { content } } }
+        }
+      }
+    }
+  `, { variables: { themeId } });
+  const { data: fileData } = await fileResp.json() as {
+    data: { theme: { files: { nodes: { filename: string; body: { content: string } }[] } } }
+  };
+  const fileContent = fileData?.theme?.files?.nodes?.[0]?.body?.content;
+  console.log("[embed] file content length:", fileContent?.length);
+  if (!fileContent) return { ok: false, message: "Could not read theme settings" };
+
   let settings: Record<string, unknown>;
   try {
-    settings = JSON.parse(asset.value);
+    settings = JSON.parse(fileContent);
   } catch {
     return { ok: false, message: "Could not parse theme settings" };
   }
@@ -53,16 +63,26 @@ async function enableEmbedInTheme(
   current.blocks = blocks;
   settings.current = current;
 
-  // 5. Save back
-  const updateResp = await restFetch(`/themes/${theme.id}/assets.json`, {
-    method: "PUT",
-    body: JSON.stringify({ asset: { key: "config/settings_data.json", value: JSON.stringify(settings) } }),
+  // 5. Save via themeFilesUpsert
+  const upsertResp = await admin.graphql(`
+    mutation UpsertThemeFile($themeId: ID!, $files: [OnlineStoreThemeFilesUpsertFileInput!]!) {
+      themeFilesUpsert(themeId: $themeId, files: $files) {
+        upsertedThemeFiles { filename }
+        userErrors { field message }
+      }
+    }
+  `, {
+    variables: {
+      themeId,
+      files: [{ filename: "config/settings_data.json", body: { type: "TEXT", value: JSON.stringify(settings, null, 2) } }],
+    },
   });
-  const updateBody = await updateResp.text();
-  console.log("[embed] PUT status:", updateResp.status, "body:", updateBody.slice(0, 300));
-  if (!updateResp.ok) {
-    return { ok: false, message: `Failed to save: ${updateBody}` };
-  }
+  const { data: upsertData } = await upsertResp.json() as {
+    data: { themeFilesUpsert: { upsertedThemeFiles: { filename: string }[]; userErrors: { field: string; message: string }[] } }
+  };
+  console.log("[embed] upsert result:", JSON.stringify(upsertData?.themeFilesUpsert));
+  const errors = upsertData?.themeFilesUpsert?.userErrors;
+  if (errors?.length) return { ok: false, message: errors.map((e) => e.message).join(", ") };
 
   return { ok: true, message: "enabled" };
 }
@@ -99,8 +119,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // Action
 // ---------------------------------------------------------------------------
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { restFetch, setCookie } = await requireDashboardSession(request);
-  const result = await enableEmbedInTheme(restFetch);
+  const { admin, setCookie } = await requireDashboardSession(request);
+  const result = await enableEmbedInTheme(admin);
   return Response.json(result, { headers: { "Set-Cookie": setCookie } });
 };
 
