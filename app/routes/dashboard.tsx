@@ -160,7 +160,7 @@ export default function DashboardLayout() {
             <span>Settings</span>
           </NavLink>
           <a
-            href="https://docs.splittester.com"
+            href="https://arkticstudio.mintlify.app"
             target="_blank"
             rel="noreferrer"
             style={{ ...S.footerLink, marginBottom: "0.375rem" }}

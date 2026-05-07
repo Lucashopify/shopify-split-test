@@ -357,10 +357,10 @@ export default function SettingsPage() {
             <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Documentation, setup guides, and direct support.</div>
           </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <a href="https://docs.splittester.com" target="_blank" rel="noreferrer" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
+            <a href="https://arkticstudio.mintlify.app" target="_blank" rel="noreferrer" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
               Docs ↗
             </a>
-            <a href="mailto:support@splittester.com" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
+            <a href="mailto:info@arkticstudio.com" style={{ padding: "0.35rem 0.875rem", background: "#fff", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", textDecoration: "none" }}>
               Contact support
             </a>
           </div>

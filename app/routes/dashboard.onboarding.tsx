@@ -240,7 +240,7 @@ export default function Onboarding() {
           <div style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#111", marginBottom: "0.2rem" }}>Need help?</div>
           <div style={{ fontSize: "0.75rem", color: "#aaa" }}>Learn how each experiment type works and how to read your results.</div>
         </div>
-        <a href="mailto:support@splittester.com" style={{ padding: "0.35rem 0.875rem", background: "none", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer", textDecoration: "none", flexShrink: 0 }}>
+        <a href="mailto:info@arkticstudio.com" style={{ padding: "0.35rem 0.875rem", background: "none", color: "#555", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer", textDecoration: "none", flexShrink: 0 }}>
           Contact support
         </a>
       </div>
