@@ -149,19 +149,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 const STATUS_COLORS: Record<string, string> = {
   RUNNING: "#16a34a",
   PAUSED: "#d97706",
-  DRAFT: "#6b7280",
-  COMPLETED: "#2563eb",
-  ARCHIVED: "#9ca3af",
-  SCHEDULED: "#7c3aed",
+  DRAFT: "#9ca3af",
+  COMPLETED: "#4b5563",
+  ARCHIVED: "#d1d5db",
+  SCHEDULED: "#6b7280",
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  PAGE_VIEW: "#6366f1",
-  ADD_TO_CART: "#f59e0b",
-  INITIATE_CHECKOUT: "#3b82f6",
-  PURCHASE: "#16a34a",
-  CLICK: "#8b5cf6",
-  CUSTOM: "#9ca3af",
+  PAGE_VIEW: "#3a7968",
+  ADD_TO_CART: "#5a9b87",
+  INITIATE_CHECKOUT: "#2d5e51",
+  PURCHASE: "#7ab5a6",
+  CLICK: "#1f4239",
+  CUSTOM: "#9ecfc4",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -197,7 +197,7 @@ function Sparkline({ points, color = "#111" }: { points: number[]; color?: strin
 
 function FunnelChart({ steps }: { steps: { label: string; count: number }[] }) {
   const max = Math.max(...steps.map((s) => s.count), 1);
-  const colors = ["#6366f1", "#f59e0b", "#3b82f6", "#16a34a"];
+  const colors = ["#3a7968", "#5a9b87", "#2d5e51", "#7ab5a6"];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", marginTop: "0.5rem" }}>
       {steps.map((step, i) => {
@@ -513,12 +513,12 @@ export default function DashboardIndex() {
         <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
           <div style={label}>Events · last {rangeLabel}</div>
           <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{totalEvents.toLocaleString()}</div>
-          <LineChart points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))} color="#6366f1" valueFormatter={(v) => v.toLocaleString() + " events"} />
+          <LineChart points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))} color="#3a7968" valueFormatter={(v) => v.toLocaleString() + " events"} />
         </div>
         <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
           <div style={label}>Revenue attributed · last {rangeLabel}</div>
           <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{fmtRangeRevenue}</div>
-          <LineChart points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))} color="#16a34a" valueFormatter={(v) => fmtMoney(v)} />
+          <LineChart points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))} color="#2d5e51" valueFormatter={(v) => fmtMoney(v)} />
         </div>
       </div>
 
