@@ -417,16 +417,6 @@ export default function DashboardIndex() {
   const fmtMoney = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
   const rangeLabel = range === 7 ? "7 days" : range === 30 ? "30 days" : "90 days";
 
-  const card: React.CSSProperties = {
-    background: "#fff",
-    borderRadius: 8,
-    border: "1px solid #e8e8e8",
-  };
-  const label: React.CSSProperties = {
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    color: "#9b9b9b",
-  };
   const big: React.CSSProperties = {
     fontSize: "1.875rem",
     fontWeight: 500,
@@ -436,113 +426,132 @@ export default function DashboardIndex() {
   };
 
   const rangeBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: "0.25rem 0.625rem",
+    padding: "0.2rem 0.5rem",
     fontSize: "0.8125rem",
     border: "none",
-    borderRadius: 5,
+    borderRadius: 4,
     cursor: "pointer",
-    background: active ? "#f0f0f0" : "transparent",
-    color: active ? "#1a1a1a" : "#aaa",
-    fontWeight: active ? 500 : 400,
+    background: active ? "rgba(255,255,255,0.2)" : "transparent",
+    color: active ? "#fff" : "rgba(255,255,255,0.5)",
+    fontWeight: 400,
   });
 
   return (
-    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto" }}>
+    <div style={{ padding: "2rem 2.5rem", maxWidth: 1040, margin: "0 auto" }}>
 
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0, color: "#1a1a1a", letterSpacing: "-0.02em" }}>Overview</h1>
-          <p style={{ fontSize: "0.8125rem", color: "#bbb", margin: "0.15rem 0 0" }}>{shopDomain}</p>
+      {/* Hero banner */}
+      <div style={{
+        background: "linear-gradient(135deg, #1a3d34 0%, #3a7968 100%)",
+        borderRadius: 16,
+        padding: "2.25rem 2.5rem",
+        marginBottom: "1.25rem",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        minHeight: 160,
+      }}>
+        {/* Decorative star */}
+        <svg style={{ position: "absolute", right: "22%", top: "50%", transform: "translateY(-50%)", opacity: 0.08 }} width={200} height={200} viewBox="0 0 200 200">
+          <path d="M100 0 L106 94 L200 100 L106 106 L100 200 L94 106 L0 100 L94 94 Z" fill="white" />
+        </svg>
+        <svg style={{ position: "absolute", right: "12%", bottom: "10%", opacity: 0.05 }} width={80} height={80} viewBox="0 0 80 80">
+          <path d="M40 0 L43 37 L80 40 L43 43 L40 80 L37 43 L0 40 L37 37 Z" fill="white" />
+        </svg>
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.55)", fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "0.625rem" }}>A/B Split Testing</div>
+          <h1 style={{ fontSize: "1.875rem", fontWeight: 600, color: "#fff", margin: "0 0 0.4rem", letterSpacing: "-0.025em", lineHeight: 1.15 }}>
+            {activeExperiments} experiment{activeExperiments !== 1 ? "s" : ""} running
+          </h1>
+          <p style={{ fontSize: "0.875rem", color: "rgba(255,255,255,0.6)", margin: "0 0 1.5rem", lineHeight: 1.5 }}>
+            {visitorsTested.toLocaleString()} visitors tested · {totalExperiments} total experiments
+          </p>
+          <button
+            onClick={() => navigate("/dashboard/experiments/new")}
+            style={{ padding: "0.5rem 1.125rem", background: "#fff", color: "#1a3d34", border: "none", borderRadius: 8, fontSize: "0.8125rem", fontWeight: 600, cursor: "pointer" }}
+          >
+            New experiment →
+          </button>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <div style={{ display: "flex", gap: "0.125rem" }}>
+
+        <div style={{ position: "relative", zIndex: 1, textAlign: "right" }}>
+          <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.55)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "0.4rem" }}>Attributed revenue</div>
+          <div style={{ fontSize: "2rem", fontWeight: 600, color: "#fff", letterSpacing: "-0.03em", lineHeight: 1 }}>{fmtRevenue}</div>
+          <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.25rem", justifyContent: "flex-end" }}>
             {RANGE_OPTIONS.map((opt) => (
               <button key={opt.value} style={rangeBtnStyle(range === opt.value)} onClick={() => setSearchParams({ range: String(opt.value) })}>
                 {opt.label}
               </button>
             ))}
           </div>
-          <button
-            onClick={() => navigate("/dashboard/experiments/new")}
-            style={{ padding: "0.4rem 0.875rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
-          >
-            New experiment
-          </button>
         </div>
       </div>
 
-      {/* Top stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", background: "#e8e8e8", border: "1px solid #e8e8e8", borderRadius: 8, overflow: "hidden", marginBottom: "1.25rem" }}>
-        {[
-          { label: "Running experiments", value: String(activeExperiments) },
-          { label: "Total experiments", value: String(totalExperiments) },
-          { label: "Visitors tested", value: visitorsTested.toLocaleString() },
-          { label: "Plan", value: billingPlan.replace(/_/g, " ") },
-        ].map((stat) => (
-          <div key={stat.label} style={{ background: "#fff", padding: "1.25rem 1.5rem" }}>
-            <div style={label}>{stat.label}</div>
-            <div style={{ ...big, marginTop: "0.4rem" }}>{stat.value}</div>
-          </div>
-        ))}
-      </div>
+      {/* Running experiment cards */}
+      {recentExperiments.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "1.25rem" }}>
+          {recentExperiments.slice(0, 3).map((exp) => (
+            <div
+              key={exp.id}
+              onClick={() => navigate(`/dashboard/experiments/${exp.id}`)}
+              style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.125rem 1.25rem", cursor: "pointer", transition: "border-color 0.15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#3a7968")}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#e8e8e8")}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <span style={{
+                  fontSize: "0.65rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
+                  color: STATUS_COLORS[exp.status] ?? "#999",
+                  background: (STATUS_COLORS[exp.status] ?? "#999") + "14",
+                  borderRadius: 4, padding: "0.2rem 0.5rem",
+                }}>
+                  {exp.status.toLowerCase()}
+                </span>
+                <span style={{ fontSize: "0.75rem", color: "#ccc" }}>{exp.variants.length} variants</span>
+              </div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 500, color: "#1a1a1a", lineHeight: 1.4, marginBottom: "0.375rem" }}>{exp.name}</div>
+              <div style={{ fontSize: "0.75rem", color: "#bbb" }}>{exp.type.replace(/_/g, " ")}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Row 1: Events + Revenue */}
+      {/* Charts — events + revenue */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Events · last {rangeLabel}</div>
+        <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#aaa", fontWeight: 500 }}>Events · {rangeLabel}</div>
           <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{totalEvents.toLocaleString()}</div>
           <LineChart points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))} color="#3a7968" valueFormatter={(v) => v.toLocaleString() + " events"} />
         </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Revenue attributed · last {rangeLabel}</div>
+        <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#aaa", fontWeight: 500 }}>Revenue attributed · {rangeLabel}</div>
           <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{fmtRangeRevenue}</div>
           <LineChart points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))} color="#2d5e51" valueFormatter={(v) => fmtMoney(v)} />
         </div>
       </div>
 
-      {/* Row 2: Funnel + Events by type */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Conversion funnel · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 1rem" }}>Across all experiments</div>
+      {/* Funnel + Status + Events by type */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1.25rem" }}>
+        <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#aaa", fontWeight: 500, marginBottom: "1rem" }}>Conversion funnel · {rangeLabel}</div>
           <FunnelChart steps={funnel} />
         </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Events by type · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 1rem" }}>All tracked event types</div>
+        <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#aaa", fontWeight: 500, marginBottom: "0.5rem" }}>Experiments by status</div>
+          <StatusDonut slices={experimentsByStatus} />
+        </div>
+        <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "1.25rem 1.5rem" }}>
+          <div style={{ fontSize: "0.75rem", color: "#aaa", fontWeight: 500, marginBottom: "1rem" }}>Events by type · {rangeLabel}</div>
           <BarChart bars={eventsByType.map((e: { type: string; count: number }) => ({ label: TYPE_LABELS[e.type] ?? e.type, count: e.count, color: TYPE_COLORS[e.type] ?? "#9ca3af" }))} />
         </div>
       </div>
 
-      {/* Row 3: Status donut + Total revenue */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "2rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Experiments by status</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 0.75rem" }}>All time</div>
-          <StatusDonut slices={experimentsByStatus} />
-        </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column" }}>
-          <div style={label}>Total attributed revenue</div>
-          <div style={{ ...big, fontSize: "2rem", margin: "0.3rem 0 0.5rem" }}>{fmtRevenue}</div>
-          <div style={{ fontSize: "0.8125rem", color: "#aaa", lineHeight: 1.6, flex: 1 }}>
-            Revenue from orders matched to an experiment variant via first-party visitor tracking.
-          </div>
-          <button
-            onClick={() => navigate("/dashboard/results")}
-            style={{ alignSelf: "flex-start", marginTop: "1rem", fontSize: "0.8125rem", fontWeight: 500, color: "#1a1a1a", background: "none", border: "1px solid #e8e8e8", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer" }}
-            onMouseEnter={(e) => ((e.target as HTMLButtonElement).style.borderColor = "#ccc")}
-            onMouseLeave={(e) => ((e.target as HTMLButtonElement).style.borderColor = "#e8e8e8")}
-          >
-            View results →
-          </button>
-        </div>
-      </div>
-
       {/* Active experiments table */}
-      <div style={{ ...card, overflow: "hidden" }}>
+      <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderBottom: "1px solid #f0f0f0" }}>
-          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#1a1a1a" }}>Active experiments</span>
+          <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "#1a1a1a" }}>Active experiments</span>
           <button onClick={() => navigate("/dashboard/experiments")} style={{ fontSize: "0.8125rem", color: "#aaa", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             View all →
           </button>
@@ -560,7 +569,7 @@ export default function DashboardIndex() {
             <thead>
               <tr style={{ borderBottom: "1px solid #f0f0f0" }}>
                 {["Name", "Type", "Status", "Variants", "Updated"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "0.625rem 1.5rem", fontWeight: 500, color: "#bbb", fontSize: "0.75rem" }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", padding: "0.625rem 1.5rem", fontWeight: 400, color: "#bbb", fontSize: "0.75rem" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -570,14 +579,14 @@ export default function DashboardIndex() {
                   key={exp.id}
                   onClick={() => navigate(`/dashboard/experiments/${exp.id}`)}
                   style={{ borderBottom: "1px solid #f5f5f5", cursor: "pointer" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f4f4"; (e.currentTarget.querySelector("td") as HTMLElement).style.color = "#3a7968"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; (e.currentTarget.querySelector("td") as HTMLElement).style.color = "#1a1a1a"; }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td style={{ padding: "0.75rem 1.5rem", fontWeight: 500, color: "#1a1a1a", transition: "color 0.15s" }}>{exp.name}</td>
+                  <td style={{ padding: "0.75rem 1.5rem", fontWeight: 500, color: "#1a1a1a" }}>{exp.name}</td>
                   <td style={{ padding: "0.75rem 1.5rem", color: "#888" }}>{exp.type.replace(/_/g, " ")}</td>
                   <td style={{ padding: "0.75rem 1.5rem" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8125rem", color: STATUS_COLORS[exp.status] ?? "#999" }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS_COLORS[exp.status] ?? "#999", flexShrink: 0 }} />
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", color: STATUS_COLORS[exp.status] ?? "#999" }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: STATUS_COLORS[exp.status] ?? "#999", flexShrink: 0 }} />
                       {exp.status.toLowerCase()}
                     </span>
                   </td>
