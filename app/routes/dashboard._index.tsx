@@ -366,9 +366,15 @@ function LineChart({
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
+        {/* Horizontal grid lines */}
         {[0.25, 0.5, 0.75, 1].map((f) => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#f0f0f0" strokeWidth={1} strokeDasharray="3 3" />
+          <line key={`h${f}`} x1={PAD} x2={W - PAD} y1={H - PAD - f * (H - PAD * 2)} y2={H - PAD - f * (H - PAD * 2)} stroke="#e8e8e8" strokeWidth={1} />
         ))}
+        {/* Vertical grid lines */}
+        {[0, 1, 2, 3, 4, 5].map((i) => {
+          const x = PAD + (i / 5) * (W - PAD * 2);
+          return <line key={`v${i}`} x1={x} x2={x} y1={PAD} y2={H - PAD} stroke="#e8e8e8" strokeWidth={1} />;
+        })}
         <path d={fillD} fill={`url(#${gradId})`} />
         <path d={pathD} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {hoverCoord !== null && (
