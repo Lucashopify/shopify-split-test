@@ -148,7 +148,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 const STATUS_COLORS: Record<string, string> = {
   RUNNING: "#16a34a",
-  PAUSED: "#d97706",
+  PAUSED: "#8b9299",
   DRAFT: "#9ca3af",
   COMPLETED: "#4b5563",
   ARCHIVED: "#d1d5db",
