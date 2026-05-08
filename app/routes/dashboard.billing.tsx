@@ -124,11 +124,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect("/dashboard/billing", { headers: { "Set-Cookie": setCookie } });
   }
 
-  const visitorCount = shop
-    ? await prisma.visitor.count({ where: { shopId: shop.id } })
-    : 0;
-
   const plan = shop?.billingPlan;
+  const periodStart = plan?.currentPeriodEnd
+    ? new Date(plan.currentPeriodEnd.getTime() - 30 * 24 * 60 * 60 * 1000)
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const visitorCount = shop
+    ? await prisma.visitor.count({ where: { shopId: shop.id, firstSeenAt: { gte: periodStart } } })
+    : 0;
 
   return data({
     shopDomain,

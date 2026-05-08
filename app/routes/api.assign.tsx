@@ -44,7 +44,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       select: { id: true },
     });
     if (!existingVisitor) {
-      const visitorCount = await prisma.visitor.count({ where: { shopId: shop.id } });
+      const periodStart = shop.billingPlan.currentPeriodEnd
+        ? new Date(shop.billingPlan.currentPeriodEnd.getTime() - 30 * 24 * 60 * 60 * 1000)
+        : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const visitorCount = await prisma.visitor.count({
+        where: { shopId: shop.id, firstSeenAt: { gte: periodStart } },
+      });
       if (visitorCount >= shop.billingPlan.monthlyVisitorCap) {
         return jsonResponse({ assignments: {}, capExceeded: true }, request);
       }
