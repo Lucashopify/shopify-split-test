@@ -362,54 +362,57 @@ export default function ExperimentDetail() {
         >
           ← Experiments
         </button>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: 0, letterSpacing: "-0.03em", color: "#111" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+          <div>
+            <h1 style={{ fontSize: "1.375rem", fontWeight: 600, margin: "0 0 0.5rem", letterSpacing: "-0.03em", color: "#111" }}>
               {experiment.name}
             </h1>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: STATUS_COLORS[displayStatus] ?? "#999" }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: STATUS_COLORS[displayStatus] ?? "#999",
-                display: "inline-block",
-                ...(displayStatus === "RUNNING" ? { animation: "spt-pulse 1.8s ease-in-out infinite" } : {}),
-              }} />
-              {displayStatus.toLowerCase()}
-            </span>
-            <style>{`@keyframes spt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
-            {status !== "DRAFT" && (
-              isSignificant && headerLift != null ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 500, color: headerLift >= 0 ? "#16a34a" : "#dc2626", background: headerLift >= 0 ? "#f0fdf4" : "#fef2f2", border: `1px solid ${headerLift >= 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 5, padding: "0.15rem 0.5rem" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: headerLift >= 0 ? "#16a34a" : "#dc2626", display: "inline-block", flexShrink: 0 }} />
-                  Significant · {headerLift >= 0 ? "+" : ""}{(headerLift * 100).toFixed(1)}%
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+              <style>{`@keyframes spt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>
+              {/* Status */}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: STATUS_COLORS[displayStatus] ?? "#999" }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: STATUS_COLORS[displayStatus] ?? "#999",
+                  flexShrink: 0,
+                  ...(displayStatus === "RUNNING" ? { animation: "spt-pulse 1.8s ease-in-out infinite" } : {}),
+                }} />
+                {displayStatus.charAt(0) + displayStatus.slice(1).toLowerCase()}
+              </span>
+              {/* Significance */}
+              {status !== "DRAFT" && (
+                isSignificant && headerLift != null ? (
+                  <span style={{ fontSize: "0.75rem", fontWeight: 500, color: headerLift >= 0 ? "#16a34a" : "#dc2626", background: headerLift >= 0 ? "#f0fdf4" : "#fef2f2", border: `1px solid ${headerLift >= 0 ? "#bbf7d0" : "#fecaca"}`, borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                    Significant · {headerLift >= 0 ? "+" : ""}{(headerLift * 100).toFixed(1)}%
+                  </span>
+                ) : totalSessions >= 100 ? (
+                  <span style={{ fontSize: "0.75rem", color: "#999", background: "#f5f5f5", border: "1px solid #ebebeb", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                    Not significant
+                  </span>
+                ) : (
+                  <span style={{ fontSize: "0.75rem", color: "#bbb", background: "#f9f9f9", border: "1px solid #efefef", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
+                    Collecting data
+                  </span>
+                )
+              )}
+              {/* Days remaining hint — inline, not below buttons */}
+              {belowMinRuntime && (displayStatus === "RUNNING" || displayStatus === "PAUSED") && (
+                <span style={{ fontSize: "0.75rem", color: "#bbb" }}>
+                  · {daysRemaining}d left for reliable results
                 </span>
-              ) : totalSessions >= 100 ? (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", color: "#d97706", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", display: "inline-block", flexShrink: 0 }} />
-                  Not significant
-                </span>
-              ) : (
-                <span style={{ fontSize: "0.75rem", color: "#aaa", background: "#f5f5f5", border: "1px solid #e9e9e9", borderRadius: 5, padding: "0.15rem 0.5rem" }}>
-                  Collecting data
-                </span>
-              )
-            )}
+              )}
+            </div>
           </div>
 
           {/* Action buttons */}
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexShrink: 0 }}>
             {(displayStatus === "RUNNING" || displayStatus === "PAUSED") && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.2rem" }}>
-                <fetcher.Form method="post">
-                  <input type="hidden" name="intent" value="complete" />
-                  <button type="submit" disabled={isSubmitting} style={{ padding: "0.4rem 0.875rem", background: "none", color: "#777", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}>
-                    Mark complete
-                  </button>
-                </fetcher.Form>
-                {belowMinRuntime && (
-                  <span style={{ fontSize: "0.7rem", color: "#aaa" }}>{daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining for reliable results</span>
-                )}
-              </div>
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="complete" />
+                <button type="submit" disabled={isSubmitting} style={{ padding: "0.4rem 0.875rem", background: "none", color: "#777", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", cursor: "pointer" }}>
+                  Complete
+                </button>
+              </fetcher.Form>
             )}
             {displayStatus === "COMPLETED" && (
               <fetcher.Form method="post">
