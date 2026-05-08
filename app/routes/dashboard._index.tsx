@@ -438,45 +438,27 @@ export default function DashboardIndex() {
   const fmtMoney = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(v);
   const rangeLabel = range === 7 ? "7 days" : range === 30 ? "30 days" : "90 days";
 
-  const card: React.CSSProperties = {
-    background: "#fff",
-    borderRadius: 8,
-    border: "1px solid #e8e8e8",
-  };
-  const label: React.CSSProperties = {
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    color: "#9b9b9b",
-  };
-  const big: React.CSSProperties = {
-    fontSize: "1.75rem",
-    fontWeight: 600,
-    letterSpacing: "-0.02em",
-    color: "#1a1a1a",
-    lineHeight: 1.1,
-  };
-
   const rangeBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: "0.25rem 0.625rem",
+    padding: "0.2rem 0.5rem",
     fontSize: "0.8125rem",
     border: "none",
-    borderRadius: 5,
+    borderRadius: 4,
     cursor: "pointer",
-    background: active ? "#f0f0f0" : "transparent",
-    color: active ? "#1a1a1a" : "#aaa",
-    fontWeight: active ? 500 : 400,
+    background: active ? "#efefef" : "transparent",
+    color: active ? "#1a1a1a" : "#c0c0c0",
+    fontWeight: 400,
   });
 
   return (
-    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto" }}>
+    <div style={{ padding: "2.75rem 3rem", maxWidth: 1020, margin: "0 auto", fontFamily: "inherit" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "2.5rem" }}>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0, color: "#1a1a1a", letterSpacing: "-0.02em" }}>Overview</h1>
-          <p style={{ fontSize: "0.8125rem", color: "#bbb", margin: "0.15rem 0 0" }}>{shopDomain}</p>
+          <h1 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0, color: "#1a1a1a" }}>Overview</h1>
+          <p style={{ fontSize: "0.8125rem", color: "#c0c0c0", margin: "0.2rem 0 0" }}>{shopDomain}</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div style={{ display: "flex", gap: "0.125rem" }}>
             {RANGE_OPTIONS.map((opt) => (
               <button key={opt.value} style={rangeBtnStyle(range === opt.value)} onClick={() => setSearchParams({ range: String(opt.value) })}>
@@ -486,93 +468,67 @@ export default function DashboardIndex() {
           </div>
           <button
             onClick={() => navigate("/dashboard/experiments/new")}
-            style={{ padding: "0.4rem 0.875rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 6, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
+            style={{ padding: "0.375rem 0.75rem", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 5, fontSize: "0.8125rem", fontWeight: 500, cursor: "pointer" }}
           >
             New experiment
           </button>
         </div>
       </div>
 
-      {/* Top stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", background: "#e8e8e8", border: "1px solid #e8e8e8", borderRadius: 8, overflow: "hidden", marginBottom: "1.25rem" }}>
+      {/* Stats — plain numbers, no boxes */}
+      <div style={{ display: "flex", gap: 0, marginBottom: "2.5rem", borderBottom: "1px solid #f0f0f0", paddingBottom: "2rem" }}>
         {[
-          { label: "Running experiments", value: String(activeExperiments) },
+          { label: "Running", value: String(activeExperiments) },
           { label: "Total experiments", value: String(totalExperiments) },
           { label: "Visitors tested", value: visitorsTested.toLocaleString() },
-          { label: "Plan", value: billingPlan.replace(/_/g, " ") },
-        ].map((stat) => (
-          <div key={stat.label} style={{ background: "#fff", padding: "1.25rem 1.5rem" }}>
-            <div style={label}>{stat.label}</div>
-            <div style={{ ...big, marginTop: "0.4rem" }}>{stat.value}</div>
+          { label: "Revenue attributed", value: fmtRevenue },
+        ].map((stat, i) => (
+          <div key={stat.label} style={{ flex: 1, paddingLeft: i === 0 ? 0 : "2rem", borderLeft: i === 0 ? "none" : "1px solid #f0f0f0" }}>
+            <div style={{ fontSize: "0.75rem", color: "#b0b0b0", marginBottom: "0.3rem" }}>{stat.label}</div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#1a1a1a", letterSpacing: "-0.025em", lineHeight: 1 }}>{stat.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Row 1: Events + Revenue */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Events · last {rangeLabel}</div>
-          <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{totalEvents.toLocaleString()}</div>
-          <LineChart points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))} color="#6366f1" valueFormatter={(v) => v.toLocaleString() + " events"} />
+      {/* Charts — 3:2 split, events gets more space */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "2.5rem", marginBottom: "2.5rem", paddingBottom: "2.5rem", borderBottom: "1px solid #f0f0f0" }}>
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "#b0b0b0", marginBottom: "0.25rem" }}>Events · {rangeLabel}</div>
+          <div style={{ fontSize: "1.375rem", fontWeight: 600, color: "#1a1a1a", letterSpacing: "-0.02em", marginBottom: "1rem" }}>{totalEvents.toLocaleString()}</div>
+          <LineChart points={eventSparkline.map((d: { date: string; count: number }) => ({ date: d.date, value: d.count }))} color="#1a1a1a" valueFormatter={(v) => v.toLocaleString() + " events"} />
         </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Revenue attributed · last {rangeLabel}</div>
-          <div style={{ ...big, margin: "0.3rem 0 1.25rem" }}>{fmtRangeRevenue}</div>
-          <LineChart points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))} color="#16a34a" valueFormatter={(v) => fmtMoney(v)} />
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "#b0b0b0", marginBottom: "0.25rem" }}>Revenue · {rangeLabel}</div>
+          <div style={{ fontSize: "1.375rem", fontWeight: 600, color: "#1a1a1a", letterSpacing: "-0.02em", marginBottom: "1rem" }}>{fmtRangeRevenue}</div>
+          <LineChart points={revenueSparkline.map((d: { date: string; revenue: number }) => ({ date: d.date, value: d.revenue }))} color="#6366f1" valueFormatter={(v) => fmtMoney(v)} />
         </div>
       </div>
 
-      {/* Row 2: Funnel + Events by type */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Conversion funnel · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 1rem" }}>Across all experiments</div>
+      {/* Funnel + Status — 3:2 */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "2.5rem", marginBottom: "2.5rem", paddingBottom: "2.5rem", borderBottom: "1px solid #f0f0f0" }}>
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "#b0b0b0", marginBottom: "1rem" }}>Conversion funnel · {rangeLabel}</div>
           <FunnelChart steps={funnel} />
         </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Events by type · {rangeLabel}</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 1rem" }}>All tracked event types</div>
-          <BarChart bars={eventsByType.map((e: { type: string; count: number }) => ({ label: TYPE_LABELS[e.type] ?? e.type, count: e.count, color: TYPE_COLORS[e.type] ?? "#9ca3af" }))} />
-        </div>
-      </div>
-
-      {/* Row 3: Status donut + Total revenue */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "2rem" }}>
-        <div style={{ ...card, padding: "1.25rem 1.5rem" }}>
-          <div style={label}>Experiments by status</div>
-          <div style={{ fontSize: "0.75rem", color: "#ccc", margin: "0.2rem 0 0.75rem" }}>All time</div>
+        <div>
+          <div style={{ fontSize: "0.75rem", color: "#b0b0b0", marginBottom: "1rem" }}>Experiments by status</div>
           <StatusDonut slices={experimentsByStatus} />
         </div>
-        <div style={{ ...card, padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column" }}>
-          <div style={label}>Total attributed revenue</div>
-          <div style={{ ...big, fontSize: "2rem", margin: "0.3rem 0 0.5rem" }}>{fmtRevenue}</div>
-          <div style={{ fontSize: "0.8125rem", color: "#aaa", lineHeight: 1.6, flex: 1 }}>
-            Revenue from orders matched to an experiment variant via first-party visitor tracking.
-          </div>
-          <button
-            onClick={() => navigate("/dashboard/results")}
-            style={{ alignSelf: "flex-start", marginTop: "1rem", fontSize: "0.8125rem", fontWeight: 500, color: "#1a1a1a", background: "none", border: "1px solid #e8e8e8", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer" }}
-            onMouseEnter={(e) => ((e.target as HTMLButtonElement).style.borderColor = "#ccc")}
-            onMouseLeave={(e) => ((e.target as HTMLButtonElement).style.borderColor = "#e8e8e8")}
-          >
-            View results →
-          </button>
-        </div>
       </div>
 
-      {/* Active experiments table */}
-      <div style={{ ...card, overflow: "hidden" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1rem 1.5rem", borderBottom: "1px solid #f0f0f0" }}>
-          <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#1a1a1a" }}>Active experiments</span>
-          <button onClick={() => navigate("/dashboard/experiments")} style={{ fontSize: "0.8125rem", color: "#aaa", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+      {/* Active experiments table — no card wrapper, just inline */}
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <span style={{ fontSize: "0.75rem", color: "#b0b0b0" }}>Active experiments</span>
+          <button onClick={() => navigate("/dashboard/experiments")} style={{ fontSize: "0.8125rem", color: "#b0b0b0", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
             View all →
           </button>
         </div>
 
         {recentExperiments.length === 0 ? (
-          <div style={{ padding: "3rem", textAlign: "center" }}>
+          <div style={{ padding: "3rem 0", textAlign: "center" }}>
             <p style={{ fontSize: "0.875rem", color: "#bbb", margin: "0 0 1rem" }}>No experiments yet</p>
-            <button onClick={() => navigate("/dashboard/experiments/new")} style={{ fontSize: "0.8125rem", color: "#1a1a1a", background: "none", border: "1px solid #e8e8e8", borderRadius: 6, padding: "0.35rem 0.75rem", cursor: "pointer" }}>
+            <button onClick={() => navigate("/dashboard/experiments/new")} style={{ fontSize: "0.8125rem", color: "#1a1a1a", background: "none", border: "1px solid #e0e0e0", borderRadius: 5, padding: "0.35rem 0.75rem", cursor: "pointer" }}>
               Create your first experiment
             </button>
           </div>
@@ -581,7 +537,7 @@ export default function DashboardIndex() {
             <thead>
               <tr style={{ borderBottom: "1px solid #f0f0f0" }}>
                 {["Name", "Type", "Status", "Variants", "Updated"].map((h) => (
-                  <th key={h} style={{ textAlign: "left", padding: "0.625rem 1.5rem", fontWeight: 500, color: "#bbb", fontSize: "0.75rem" }}>{h}</th>
+                  <th key={h} style={{ textAlign: "left", padding: "0 0 0.625rem", fontWeight: 400, color: "#c0c0c0", fontSize: "0.75rem", paddingRight: "1.5rem" }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -594,16 +550,16 @@ export default function DashboardIndex() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <td style={{ padding: "0.75rem 1.5rem", fontWeight: 500, color: "#1a1a1a" }}>{exp.name}</td>
-                  <td style={{ padding: "0.75rem 1.5rem", color: "#888" }}>{exp.type.replace(/_/g, " ")}</td>
-                  <td style={{ padding: "0.75rem 1.5rem" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8125rem", color: STATUS_COLORS[exp.status] ?? "#999" }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS_COLORS[exp.status] ?? "#999", flexShrink: 0 }} />
+                  <td style={{ padding: "0.75rem 1.5rem 0.75rem 0", fontWeight: 500, color: "#1a1a1a" }}>{exp.name}</td>
+                  <td style={{ padding: "0.75rem 1.5rem 0.75rem 0", color: "#999" }}>{exp.type.replace(/_/g, " ")}</td>
+                  <td style={{ padding: "0.75rem 1.5rem 0.75rem 0" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", color: STATUS_COLORS[exp.status] ?? "#999" }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: STATUS_COLORS[exp.status] ?? "#999", flexShrink: 0 }} />
                       {exp.status.toLowerCase()}
                     </span>
                   </td>
-                  <td style={{ padding: "0.75rem 1.5rem", color: "#888" }}>{exp.variants.length}</td>
-                  <td style={{ padding: "0.75rem 1.5rem", color: "#bbb" }}>{new Date(exp.updatedAt).toLocaleDateString()}</td>
+                  <td style={{ padding: "0.75rem 1.5rem 0.75rem 0", color: "#999" }}>{exp.variants.length}</td>
+                  <td style={{ padding: "0.75rem 0", color: "#c0c0c0" }}>{new Date(exp.updatedAt).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
