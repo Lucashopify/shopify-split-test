@@ -132,6 +132,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? await prisma.visitor.count({ where: { shopId: shop.id, firstSeenAt: { gte: periodStart } } })
     : 0;
 
+  const isPaidActive = !!plan && plan.status === "active" && plan.planName !== "free_trial";
+
   return data({
     shopDomain,
     myshopifyDomain: shop?.myshopifyDomain ?? shopDomain,
@@ -142,6 +144,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     monthlyVisitorCap: plan?.monthlyVisitorCap ?? 10_000,
     liftAssistEnabled: plan?.liftAssistEnabled ?? false,
     visitorCount,
+    isPaidActive,
   }, { headers: { "Set-Cookie": setCookie } });
 };
 
@@ -172,10 +175,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const interval = yearly ? "ANNUAL" : "EVERY_30_DAYS";
     const chargeAmount = yearly ? annualTotal : plan.price;
 
+    // Determine if this is an upgrade or downgrade to set replacementBehavior
+    const existingPlan = shop.billingPlan;
+    const isExistingPaid = !!existingPlan && existingPlan.status === "active" && existingPlan.planName !== "free_trial";
+    const existingPrice = isExistingPaid ? (PLAN_CONFIG[existingPlan.planName as PaidPlanId]?.price ?? 0) : 0;
+    const isUpgrade = plan.price > existingPrice;
+    const replacementBehavior = isUpgrade ? "APPLY_IMMEDIATELY" : "STANDARD";
+
+    // Only pass trialDays for new (non-paid) subscribers
+    const trialDays = isExistingPaid ? undefined : plan.trialDays;
+
     try {
       const resp = await admin.graphql(`
-        mutation CreateSubscription($name: String!, $returnUrl: URL!, $lineItems: [AppSubscriptionLineItemInput!]!, $trialDays: Int, $test: Boolean) {
-          appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, trialDays: $trialDays, test: $test) {
+        mutation CreateSubscription($name: String!, $returnUrl: URL!, $lineItems: [AppSubscriptionLineItemInput!]!, $trialDays: Int, $test: Boolean, $replacementBehavior: AppSubscriptionReplacementBehavior) {
+          appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems, trialDays: $trialDays, test: $test, replacementBehavior: $replacementBehavior) {
             appSubscription { id status }
             confirmationUrl
             userErrors { field message }
@@ -185,8 +198,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         variables: {
           name: subscriptionName,
           returnUrl,
-          trialDays: plan.trialDays,
+          trialDays,
           test: isTest,
+          replacementBehavior,
           lineItems: [{
             plan: {
               appRecurringPricingDetails: {
@@ -257,7 +271,7 @@ const CHECK = (
 export default function BillingPage() {
   const {
     planName, trialEndsAt, currentPeriodEnd, status,
-    monthlyVisitorCap, liftAssistEnabled, visitorCount,
+    monthlyVisitorCap, liftAssistEnabled, visitorCount, isPaidActive,
   } = useLoaderData<typeof loader>();
 
   const fetcher = useFetcher<{ error?: string; ok?: boolean }>();
@@ -378,6 +392,9 @@ export default function BillingPage() {
           {PAID_PLANS.map((plan) => {
             const isCurrent = plan.id === planName;
             const isHighlighted = plan.id === "growth";
+            const currentPrice = isPaidActive ? (PLAN_CONFIG[planName as PaidPlanId]?.price ?? 0) : 0;
+            const isUpgrade = plan.price > currentPrice;
+            const btnLabel = isCurrent ? "Current plan" : isPaidActive ? (isUpgrade ? "Upgrade" : "Downgrade") : "Start free trial";
             return (
               <div
                 key={plan.id}
@@ -427,9 +444,11 @@ export default function BillingPage() {
                   ))}
                 </ul>
 
-                <div style={{ fontSize: "0.7rem", color: "#aaa", marginBottom: "0.75rem" }}>
-                  {plan.trialDays}-day free trial
-                </div>
+                {!isPaidActive && (
+                  <div style={{ fontSize: "0.7rem", color: "#aaa", marginBottom: "0.75rem" }}>
+                    {plan.trialDays}-day free trial
+                  </div>
+                )}
 
                 {!isCurrent && (
                   <fetcher.Form method="post">
@@ -452,7 +471,7 @@ export default function BillingPage() {
                         opacity: upgrading ? 0.6 : 1,
                       }}
                     >
-                      {upgrading ? "Redirecting…" : "Start free trial"}
+                      {upgrading ? "Redirecting…" : btnLabel}
                     </button>
                   </fetcher.Form>
                 )}
