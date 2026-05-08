@@ -85,8 +85,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const sub = gqlData?.node;
 
       if (sub?.status === "ACTIVE") {
-        // Match the plan by name
-        const matched = PAID_PLANS.find((p) => sub.name === p.shopifyName);
+        // Match by either monthly or yearly plan name
+        const matched = PAID_PLANS.find(
+          (p) => sub.name === p.shopifyName || sub.name === p.shopifyNameYearly
+        );
+        const isYearly = matched ? sub.name === matched.shopifyNameYearly : false;
+        const periodDays = isYearly ? 365 : 30;
         if (matched) {
           await prisma.billingPlan.upsert({
             where: { shopId: shop.id },
@@ -96,7 +100,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               planName: matched.id,
               monthlyVisitorCap: matched.visitorCap,
               trialEndsAt: null,
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              currentPeriodEnd: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000),
               status: "active",
               liftAssistEnabled: matched.liftAssist,
             },
@@ -105,7 +109,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               planName: matched.id,
               monthlyVisitorCap: matched.visitorCap,
               trialEndsAt: null,
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              currentPeriodEnd: new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000),
               status: "active",
               liftAssistEnabled: matched.liftAssist,
             },
@@ -376,18 +380,18 @@ export default function BillingPage() {
               <div
                 key={plan.id}
                 style={{
-                  border: isCurrent ? "1.5px solid #111" : isHighlighted ? "1.5px solid #2563eb" : "1px solid #e9e9e9",
+                  border: isCurrent ? "1.5px solid #111" : isHighlighted ? "1.5px solid #3a7968" : "1px solid #e9e9e9",
                   borderRadius: 8,
                   padding: "1.25rem",
                   position: "relative",
-                  background: isHighlighted && !isCurrent ? "#f8faff" : "#fff",
+                  background: isHighlighted && !isCurrent ? "#f2f8f6" : "#fff",
                 }}
               >
                 {isCurrent && (
                   <span style={{ position: "absolute", top: "0.75rem", right: "0.75rem", fontSize: "0.65rem", fontWeight: 600, color: "#fff", background: "#111", borderRadius: 4, padding: "0.15rem 0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Current</span>
                 )}
                 {isHighlighted && !isCurrent && (
-                  <span style={{ position: "absolute", top: "0.75rem", right: "0.75rem", fontSize: "0.65rem", fontWeight: 600, color: "#2563eb", background: "#eff6ff", borderRadius: 4, padding: "0.15rem 0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Popular</span>
+                  <span style={{ position: "absolute", top: "0.75rem", right: "0.75rem", fontSize: "0.65rem", fontWeight: 600, color: "#3a7968", background: "#edf7f4", borderRadius: 4, padding: "0.15rem 0.5rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>Popular</span>
                 )}
 
                 <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#111", marginBottom: "0.2rem" }}>{plan.name}</div>
@@ -436,7 +440,7 @@ export default function BillingPage() {
                       style={{
                         width: "100%",
                         padding: "0.45rem",
-                        background: isHighlighted ? "#2563eb" : "#111",
+                        background: isHighlighted ? "#3a7968" : "#111",
                         color: "#fff",
                         border: "none",
                         borderRadius: 6,

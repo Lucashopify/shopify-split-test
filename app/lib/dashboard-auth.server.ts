@@ -115,6 +115,7 @@ export async function requireDashboardSession(request: Request) {
 
   const dbShop = await prisma.shop.findFirst({
     where: { shopDomain: shop, uninstalledAt: null, accessToken: { not: "" } },
+    include: { billingPlan: true },
   });
 
   if (!dbShop?.accessToken) throw redirect(`/?shop=${shop}`);
@@ -176,6 +177,18 @@ export async function requireDashboardSession(request: Request) {
 
   cookieSession.set("shop", shop);
   const setCookie = await sessionStorage.commitSession(cookieSession);
+
+  // Enforce trial expiry — redirect to billing unless already there
+  const billingPlan = dbShop.billingPlan;
+  const isBillingPath = url.pathname.startsWith("/dashboard/billing");
+  if (
+    billingPlan?.planName === "free_trial" &&
+    billingPlan?.trialEndsAt &&
+    billingPlan.trialEndsAt < now &&
+    !isBillingPath
+  ) {
+    throw redirect("/dashboard/billing", { headers: { "Set-Cookie": setCookie } });
+  }
 
   const restFetch = (path: string, init?: RequestInit) =>
     fetch(`https://${shop}/admin/api/2025-01${path}`, {

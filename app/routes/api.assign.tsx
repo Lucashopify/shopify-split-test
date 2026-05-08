@@ -37,6 +37,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return jsonResponse({ assignments: {} }, request);
   }
 
+  // Enforce visitor cap — only block new visitors, not returning ones
+  if (shop.billingPlan?.monthlyVisitorCap) {
+    const existingVisitor = await prisma.visitor.findUnique({
+      where: { shopId_visitorToken: { shopId: shop.id, visitorToken } },
+      select: { id: true },
+    });
+    if (!existingVisitor) {
+      const visitorCount = await prisma.visitor.count({ where: { shopId: shop.id } });
+      if (visitorCount >= shop.billingPlan.monthlyVisitorCap) {
+        return jsonResponse({ assignments: {}, capExceeded: true }, request);
+      }
+    }
+  }
+
   const result = await assignVisitor({
     shopId: shop.id,
     visitorToken,
