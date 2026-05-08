@@ -173,27 +173,6 @@ const TYPE_LABELS: Record<string, string> = {
   CUSTOM: "Custom",
 };
 
-function Sparkline({ points, color = "#111" }: { points: number[]; color?: string }) {
-  const max = Math.max(...points, 1);
-  const W = 160, H = 44, PAD = 2;
-  const pts = points.map((v, i) => {
-    const x = PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2);
-    const y = H - PAD - (v / max) * (H - PAD * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  // fill area
-  const fillPts = [
-    `${PAD},${H - PAD}`,
-    ...pts,
-    `${(W - PAD).toFixed(1)},${H - PAD}`,
-  ].join(" ");
-  return (
-    <svg width={W} height={H} style={{ display: "block" }}>
-      <polygon points={fillPts} fill={color} fillOpacity={0.08} />
-      <path d={"M" + pts.join(" L")} fill="none" stroke={color} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function FunnelChart({ steps }: { steps: { label: string; count: number }[] }) {
   const max = Math.max(...steps.map((s) => s.count), 1);
@@ -215,11 +194,11 @@ function FunnelChart({ steps }: { steps: { label: string; count: number }[] }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 {convRate && (
-                  <span style={{ fontSize: "0.68rem", color: "#aaa", background: "#f5f5f5", borderRadius: 3, padding: "0.1rem 0.35rem" }}>
-                    ↓ {convRate}%
+                  <span style={{ fontSize: "0.75rem", color: "#3a7968", fontWeight: 600 }}>
+                    {convRate}%
                   </span>
                 )}
-                <span style={{ fontSize: "0.75rem", color: "#111", fontWeight: 600 }}>{step.count.toLocaleString()}</span>
+                <span style={{ fontSize: "0.75rem", color: "#888", fontWeight: 400 }}>{step.count.toLocaleString()}</span>
               </div>
             </div>
             <div style={{ background: "#f0f0f0", borderRadius: 5, height: 8, overflow: "hidden" }}>
@@ -316,7 +295,7 @@ function LineChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const max = Math.max(...points.map((p) => p.value), 1);
-  const W = 320, H = 80, PAD = 4;
+  const W = 320, H = 140, PAD = 4;
   const gradId = `lg-${color.replace("#", "")}`;
   const coords = points.map((p, i) => ({
     x: PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2),
@@ -449,11 +428,11 @@ export default function DashboardIndex() {
     color: "#9b9b9b",
   };
   const big: React.CSSProperties = {
-    fontSize: "1.75rem",
-    fontWeight: 600,
-    letterSpacing: "-0.02em",
+    fontSize: "2rem",
+    fontWeight: 700,
+    letterSpacing: "-0.03em",
     color: "#1a1a1a",
-    lineHeight: 1.1,
+    lineHeight: 1,
   };
 
   const rangeBtnStyle = (active: boolean): React.CSSProperties => ({
@@ -468,7 +447,7 @@ export default function DashboardIndex() {
   });
 
   return (
-    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto" }}>
+    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto", background: "#f8f8f8", minHeight: "100vh" }}>
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
@@ -591,10 +570,10 @@ export default function DashboardIndex() {
                   key={exp.id}
                   onClick={() => navigate(`/dashboard/experiments/${exp.id}`)}
                   style={{ borderBottom: "1px solid #f5f5f5", cursor: "pointer" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fafafa")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f4f4f4"; (e.currentTarget.querySelector("td") as HTMLElement).style.color = "#3a7968"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; (e.currentTarget.querySelector("td") as HTMLElement).style.color = "#1a1a1a"; }}
                 >
-                  <td style={{ padding: "0.75rem 1.5rem", fontWeight: 500, color: "#1a1a1a" }}>{exp.name}</td>
+                  <td style={{ padding: "0.75rem 1.5rem", fontWeight: 500, color: "#1a1a1a", transition: "color 0.15s" }}>{exp.name}</td>
                   <td style={{ padding: "0.75rem 1.5rem", color: "#888" }}>{exp.type.replace(/_/g, " ")}</td>
                   <td style={{ padding: "0.75rem 1.5rem" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8125rem", color: STATUS_COLORS[exp.status] ?? "#999" }}>
