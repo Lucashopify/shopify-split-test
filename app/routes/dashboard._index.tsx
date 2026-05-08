@@ -428,9 +428,9 @@ export default function DashboardIndex() {
     color: "#9b9b9b",
   };
   const big: React.CSSProperties = {
-    fontSize: "2rem",
-    fontWeight: 700,
-    letterSpacing: "-0.03em",
+    fontSize: "1.875rem",
+    fontWeight: 500,
+    letterSpacing: "-0.02em",
     color: "#1a1a1a",
     lineHeight: 1,
   };
@@ -447,7 +447,7 @@ export default function DashboardIndex() {
   });
 
   return (
-    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto", background: "#f8f8f8", minHeight: "100vh" }}>
+    <div style={{ padding: "2.5rem 2.5rem", maxWidth: 1040, margin: "0 auto" }}>
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
