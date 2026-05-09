@@ -5,35 +5,33 @@ import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getPlanLimits } from "../lib/billing.server";
 
-const EMBED_TYPE_PREFIX = "shopify://apps/split-tester/blocks/split-test-embed";
-
 async function isEmbedEnabled(
   restFetch: (path: string, init?: RequestInit) => Promise<Response>,
 ): Promise<boolean> {
   try {
     const themesResp = await restFetch("/themes.json?role=main");
-    if (!themesResp.ok) { console.log("[embed-check] themes fetch failed:", themesResp.status); return false; }
+    if (!themesResp.ok) return false;
     const { themes } = await themesResp.json() as { themes: { id: number; name: string }[] };
     const theme = themes?.[0];
-    if (!theme) { console.log("[embed-check] no theme found"); return false; }
-    console.log("[embed-check] theme:", theme.id, theme.name);
+    if (!theme) return false;
 
     const assetResp = await restFetch(
       `/themes/${theme.id}/assets.json?asset[key]=config/settings_data.json`,
     );
-    if (!assetResp.ok) { console.log("[embed-check] asset fetch failed:", assetResp.status); return false; }
+    if (!assetResp.ok) return false;
     const { asset } = await assetResp.json() as { asset: { value: string } };
     const settings = JSON.parse(asset.value);
     const blocks = settings?.current?.blocks ?? {};
-    console.log("[embed-check] blocks:", JSON.stringify(blocks).slice(0, 300));
-    const enabled = Object.values(blocks).some(
-      (b: unknown) => (b as { type: string; disabled?: boolean }).type?.startsWith(EMBED_TYPE_PREFIX) &&
-        (b as { disabled?: boolean }).disabled !== true,
+
+    // Match any block whose type contains our embed block name, regardless of app handle
+    return Object.values(blocks).some(
+      (b: unknown) => {
+        const block = b as { type: string; disabled?: boolean };
+        return block.type?.includes("split-test-embed") && block.disabled !== true;
+      }
     );
-    console.log("[embed-check] enabled:", enabled);
-    return enabled;
   } catch (e) {
-    console.log("[embed-check] error:", e);
+    console.error("[embed-check] error:", e);
     return false;
   }
 }
