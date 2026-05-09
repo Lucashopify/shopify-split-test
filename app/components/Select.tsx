@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 
 export type SelectOption = {
   value: string;
@@ -27,7 +28,11 @@ const CHEVRON = (
 
 export function Select({ value, onChange, options, name, style, placeholder }: SelectProps) {
   const [open, setOpen] = React.useState(false);
+  const [dropdownStyle, setDropdownStyle] = React.useState<React.CSSProperties>({});
   const ref = React.useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => { setMounted(true); }, []);
 
   React.useEffect(() => {
     if (!open) return;
@@ -38,6 +43,18 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 3,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
   }, [open]);
 
   const selected = options.find((o) => o.value === value);
@@ -80,14 +97,10 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
         {CHEVRON}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
           style={{
-            position: "absolute",
-            top: "calc(100% + 3px)",
-            left: 0,
-            right: 0,
-            zIndex: 200,
+            ...dropdownStyle,
             background: "#fff",
             border: "1px solid #e9e9e9",
             borderRadius: 6,
@@ -147,7 +160,8 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
               )}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
