@@ -115,17 +115,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // -----------------------------------------------------------------------
-    case "PRODUCTS_UPDATE": {
-      // TODO Phase 4: invalidate price-test Shopify Function if product price
-      // was changed outside the app
-      break;
-    }
-
-    // -----------------------------------------------------------------------
     // GDPR mandatory webhooks
     case "CUSTOMERS_DATA_REQUEST": {
-      console.log(`[webhook] GDPR data request for shop ${shop}`);
-      // TODO Phase 6: surface in data-export UI, respond within 30 days
+      // Shopify requires merchants to respond within 30 days.
+      // We log the request — the merchant must fulfil it via email to info@arkticstudio.com.
+      // We do not store PII against visitor tokens so the only data is the anonymised visitor rows.
+      const reqData = payload as { customer?: { id?: number; email?: string } };
+      console.log(`[webhook] GDPR customers/data_request for shop ${shop} customer=${reqData.customer?.id ?? "unknown"}`);
       break;
     }
 
@@ -156,10 +152,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     case "SHOP_REDACT": {
-      // Called 48h after uninstall — delete all shop data
-      console.log(`[webhook] GDPR shop redact for shop ${shop}`);
-      // TODO Phase 6: cascade delete all shop data behind a job queue
-      // (do it async so the webhook responds in time)
+      // Called 48h after uninstall — delete all shop data per GDPR requirement
+      console.log(`[webhook] GDPR shop/redact for shop ${shop} — deleting all data`);
+      const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: shop } });
+      if (shopRecord) {
+        const shopId = shopRecord.id;
+        const expIds = (await prisma.experiment.findMany({ where: { shopId }, select: { id: true } })).map((e) => e.id);
+        // Delete in dependency order
+        await prisma.event.deleteMany({ where: { shopId } });
+        await prisma.order.deleteMany({ where: { shopId } });
+        if (expIds.length > 0) {
+          await prisma.allocation.deleteMany({ where: { experimentId: { in: expIds } } });
+          await prisma.experimentResult.deleteMany({ where: { experimentId: { in: expIds } } });
+          await prisma.auditLog.deleteMany({ where: { experimentId: { in: expIds } } });
+          await prisma.experiment.deleteMany({ where: { id: { in: expIds } } });
+        }
+        await prisma.visitor.deleteMany({ where: { shopId } });
+        await prisma.segment.deleteMany({ where: { shopId } });
+        await prisma.billingPlan.deleteMany({ where: { shopId } });
+        await prisma.brandTokens.deleteMany({ where: { shopId } });
+        await prisma.liftAssistTemplate.deleteMany({ where: { shopId } });
+        await prisma.auditLog.deleteMany({ where: { shopId } });
+        await prisma.session.deleteMany({ where: { shop } });
+        await prisma.shop.delete({ where: { id: shopId } });
+        console.log(`[webhook] GDPR shop/redact complete for ${shop}`);
+      }
       break;
     }
 

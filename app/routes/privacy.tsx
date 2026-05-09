@@ -7,7 +7,9 @@ export default function PrivacyPolicy() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "3rem 2rem", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", color: "#111", lineHeight: 1.7 }}>
       <div style={{ marginBottom: "2.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "1.5rem" }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>A</div>
+          <div style={{ width: 28, height: 28, borderRadius: 6, overflow: "hidden", flexShrink: 0 }}>
+            <img src="/arktic-icon.png" alt="Arktic" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
           <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>Arktic</span>
         </div>
         <h1 style={{ fontSize: "1.75rem", fontWeight: 700, margin: "0 0 0.5rem", letterSpacing: "-0.03em" }}>Privacy Policy</h1>

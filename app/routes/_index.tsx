@@ -57,8 +57,8 @@ export default function Index() {
       <div style={{ width: "100%", maxWidth: 380, padding: "0 1.5rem" }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem", justifyContent: "center" }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>
-            A
+          <div style={{ width: 28, height: 28, borderRadius: 6, overflow: "hidden", flexShrink: 0 }}>
+            <img src="/arktic-icon.png" alt="Arktic" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           </div>
           <span style={{ fontSize: "1rem", fontWeight: 600, color: "#111", letterSpacing: "-0.02em" }}>Arktic</span>
         </div>
