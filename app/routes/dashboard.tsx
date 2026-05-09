@@ -131,7 +131,10 @@ export default function DashboardLayout() {
         <div style={S.logoArea}>
           <div style={S.logoRow}>
             <div style={S.logoMark}><img src="/arktic-icon.png" alt="Arktic" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
-            <span style={S.logoText}>Arktic</span>
+            <div>
+              <div style={S.logoText}>Arktic</div>
+              <div style={{ fontSize: "0.6875rem", color: "#999", marginTop: 1, letterSpacing: "-0.01em" }}>A/B Split test</div>
+            </div>
           </div>
           <div style={S.shopName}>{shop}</div>
         </div>
