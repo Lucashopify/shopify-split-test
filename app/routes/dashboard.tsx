@@ -50,18 +50,12 @@ const S = {
   },
 
   logoMark: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    background: "#111111",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#ffffff",
-    letterSpacing: "-0.02em",
+    width: 28,
+    height: 28,
+    borderRadius: 5,
+    overflow: "hidden",
     flexShrink: 0,
+    display: "flex",
   } as React.CSSProperties,
 
   logoText: {
@@ -136,7 +130,7 @@ export default function DashboardLayout() {
       <aside style={S.sidebar}>
         <div style={S.logoArea}>
           <div style={S.logoRow}>
-            <div style={S.logoMark}>S</div>
+            <div style={S.logoMark}><img src="/arktic-icon.png" alt="Arktic" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></div>
             <span style={S.logoText}>Arktic</span>
           </div>
           <div style={S.shopName}>{shop}</div>
