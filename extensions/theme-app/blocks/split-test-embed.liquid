@@ -12,7 +12,7 @@
   {%- endif -%}
 </script>
 
-{{ 'split-test-init.js' | asset_url | script_tag }}
+<script src="{{ 'split-test-init.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
