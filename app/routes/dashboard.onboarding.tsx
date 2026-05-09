@@ -97,7 +97,7 @@ export default function Onboarding() {
 
   // Deep link — pre-toggles the embed block so merchant just clicks Save
   const shopName = shop.replace(".myshopify.com", "");
-  const embedDeepLink = `https://${myshopifyDomain}/admin/themes/current/editor?context=apps&activateAppId=${apiKey}/split-test-embed`;
+  const embedDeepLink = `https://admin.shopify.com/store/${shopName}/themes/current/editor?context=apps&activateAppId=${apiKey}/split-test-embed`;
   const themeEditorUrl = `https://admin.shopify.com/store/${shopName}/themes/current/editor`;
 
   const completedCount = [embedActive, hasExperiment, hasRunning, isPaid].filter(Boolean).length;
