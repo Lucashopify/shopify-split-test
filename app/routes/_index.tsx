@@ -1,51 +1,36 @@
 import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Form } from "react-router";
-import { createHmac } from "crypto";
 import { login } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const hmac = url.searchParams.get("hmac");
-  const timestamp = url.searchParams.get("timestamp");
 
-  if (shop) {
-    // Already installed — go straight to dashboard
+  if (shop && hmac) {
     const { prisma } = await import("../db.server");
     const shopRecord = await prisma.shop.findFirst({
       where: { shopDomain: shop, uninstalledAt: null, accessToken: { not: "" } },
     });
+
+    // Already installed — go to dashboard
     if (shopRecord) throw redirect(`/dashboard?shop=${shop}`);
 
-    // Shopify install request — verify HMAC and auto-start OAuth
-    if (hmac && timestamp) {
-      const params = new URLSearchParams(url.searchParams);
-      params.delete("hmac");
-      const message = [...params.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => `${k}=${v}`)
-        .join("&");
-      const computed = createHmac("sha256", process.env.SHOPIFY_API_SECRET ?? "")
-        .update(message)
-        .digest("hex");
-
-      if (computed === hmac) {
-        const normalized = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
-        const appUrl = process.env.SHOPIFY_APP_URL ?? "";
-        const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-        const scopes = process.env.SCOPES ?? "";
-        const redirectUri = `${appUrl}/auth/callback`;
-        const state = Math.random().toString(36).slice(2);
-        throw redirect(
-          `https://${normalized}/admin/oauth/authorize` +
-          `?client_id=${apiKey}` +
-          `&scope=${encodeURIComponent(scopes)}` +
-          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-          `&state=${state}` +
-          `&grant_options[]=offline`
-        );
-      }
-    }
+    // New install or re-auth — start OAuth
+    const normalized = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
+    const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+    const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+    const scopes = process.env.SCOPES ?? "";
+    const redirectUri = `${appUrl}/auth/callback`;
+    const state = Math.random().toString(36).slice(2);
+    throw redirect(
+      `https://${normalized}/admin/oauth/authorize` +
+      `?client_id=${apiKey}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&state=${state}` +
+      `&grant_options[]=offline`
+    );
   }
 
   return {};
