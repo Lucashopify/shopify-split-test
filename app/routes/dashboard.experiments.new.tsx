@@ -27,7 +27,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     dbShop ? prisma.segment.findMany({ where: { shopId: dbShop.id }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } }) : [],
     dbShop ? getPlanLimits(dbShop.id) : null,
   ]);
-  return { themes, templateFiles, segments, planLimits };
+  const themesWithDate = themes.map((t) => ({
+    ...t,
+    updatedLabel: new Date(t.updatedAt).toISOString().slice(0, 10),
+  }));
+  return { themes: themesWithDate, templateFiles, segments, planLimits };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -149,14 +153,12 @@ export default function NewExperiment() {
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
 
-  const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  // Variant B can't be the live theme — control is already the live theme
   const variantThemeOptions = [
     { label: "— Select a theme —", value: "" },
     ...themes
       .filter((t) => t.role !== "MAIN")
       .map((t) => ({
-        label: `${t.name} · edited ${fmtDate(t.updatedAt)}`,
+        label: `${t.name} · edited ${t.updatedLabel}`,
         value: t.id,
       })),
   ];
