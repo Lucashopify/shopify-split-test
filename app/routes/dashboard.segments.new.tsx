@@ -13,12 +13,41 @@ type Rule = { id: string; field: RuleField; op: RuleOp; value: string };
 
 // ── Field / operator config ──────────────────────────────────────────────────
 
-const FIELDS: { value: RuleField; label: string; type: "select" | "text"; options?: string[] }[] = [
-  { value: "device",       label: "Device",        type: "select", options: ["mobile", "tablet", "desktop"] },
-  { value: "customerType", label: "Customer type", type: "select", options: ["new", "returning"] },
-  { value: "country",      label: "Country",       type: "text" },
+const COUNTRIES: string[][] = [
+  ["AF", "Afghanistan"], ["AL", "Albania"], ["DZ", "Algeria"], ["AR", "Argentina"],
+  ["AU", "Australia"], ["AT", "Austria"], ["BE", "Belgium"], ["BR", "Brazil"],
+  ["CA", "Canada"], ["CL", "Chile"], ["CN", "China"], ["CO", "Colombia"],
+  ["HR", "Croatia"], ["CZ", "Czech Republic"], ["DK", "Denmark"], ["EG", "Egypt"],
+  ["FI", "Finland"], ["FR", "France"], ["DE", "Germany"], ["GH", "Ghana"],
+  ["GR", "Greece"], ["HK", "Hong Kong"], ["HU", "Hungary"], ["IN", "India"],
+  ["ID", "Indonesia"], ["IE", "Ireland"], ["IL", "Israel"], ["IT", "Italy"],
+  ["JP", "Japan"], ["KE", "Kenya"], ["KR", "South Korea"], ["MY", "Malaysia"],
+  ["MX", "Mexico"], ["MA", "Morocco"], ["NL", "Netherlands"], ["NZ", "New Zealand"],
+  ["NG", "Nigeria"], ["NO", "Norway"], ["PK", "Pakistan"], ["PH", "Philippines"],
+  ["PL", "Poland"], ["PT", "Portugal"], ["RO", "Romania"], ["RU", "Russia"],
+  ["SA", "Saudi Arabia"], ["SG", "Singapore"], ["ZA", "South Africa"], ["ES", "Spain"],
+  ["SE", "Sweden"], ["CH", "Switzerland"], ["TW", "Taiwan"], ["TH", "Thailand"],
+  ["TR", "Turkey"], ["UA", "Ukraine"], ["AE", "United Arab Emirates"],
+  ["GB", "United Kingdom"], ["US", "United States"], ["VN", "Vietnam"],
+];
+
+const FIELDS: { value: RuleField; label: string; type: "select" | "text"; options?: { value: string; label: string }[] }[] = [
+  { value: "device",       label: "Device",        type: "select", options: [{ value: "mobile", label: "Mobile" }, { value: "tablet", label: "Tablet" }, { value: "desktop", label: "Desktop" }] },
+  { value: "customerType", label: "Customer type", type: "select", options: [{ value: "new", label: "New" }, { value: "returning", label: "Returning" }] },
+  { value: "country",      label: "Country",       type: "select", options: COUNTRIES.map(([code, name]) => ({ value: code, label: `${name} (${code})` })) },
   { value: "utmSource",    label: "UTM source",    type: "text" },
-  { value: "utmMedium",    label: "UTM medium",    type: "text" },
+  { value: "utmMedium",    label: "UTM medium",    type: "select", options: [
+    { value: "organic", label: "Organic" },
+    { value: "cpc", label: "CPC / Paid search" },
+    { value: "email", label: "Email" },
+    { value: "social", label: "Social" },
+    { value: "referral", label: "Referral" },
+    { value: "direct", label: "Direct" },
+    { value: "affiliate", label: "Affiliate" },
+    { value: "display", label: "Display" },
+    { value: "sms", label: "SMS" },
+    { value: "video", label: "Video" },
+  ]},
   { value: "utmCampaign",  label: "UTM campaign",  type: "text" },
   { value: "referrer",     label: "Referrer URL",  type: "text" },
 ];
@@ -111,7 +140,7 @@ export default function NewSegmentPage() {
   const [name, setName] = useState("");
   const [combinator, setCombinator] = useState<"AND" | "OR">("AND");
   const [rules, setRules] = useState<Rule[]>([
-    { id: uid(), field: "device", op: "eq", value: "mobile" },
+    { id: uid(), field: "device", op: "eq", value: FIELDS[0].options?.[0]?.value ?? "mobile" },
   ]);
 
   const addRule = useCallback(() => {
@@ -131,7 +160,7 @@ export default function NewSegmentPage() {
         if (patch.field) {
           const meta = fieldMeta(patch.field);
           updated.op = meta.type === "select" ? "eq" : "eq";
-          updated.value = meta.options?.[0] ?? "";
+          updated.value = meta.options?.[0]?.value ?? "";
         }
         return updated;
       })
@@ -227,7 +256,7 @@ export default function NewSegmentPage() {
                       value={rule.value}
                       onChange={(v) => updateRule(rule.id, { value: v })}
                       style={{ ...selectStyle, flex: 1 }}
-                      options={(meta.options ?? []).map((opt) => ({ value: opt, label: opt }))}
+                      options={meta.options ?? []}
                     />
                   ) : (
                     <input
