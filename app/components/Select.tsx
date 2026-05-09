@@ -45,8 +45,8 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  React.useEffect(() => {
-    if (!open || !ref.current) return;
+  const updatePosition = React.useCallback(() => {
+    if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     setDropdownStyle({
       position: "fixed",
@@ -55,7 +55,18 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
       width: rect.width,
       zIndex: 9999,
     });
-  }, [open]);
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open, updatePosition]);
 
   const selected = options.find((o) => o.value === value);
 
@@ -106,6 +117,8 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
             borderRadius: 6,
             boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             overflow: "hidden",
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            fontSize: "0.875rem",
           }}
         >
           {options.map((opt) => (
