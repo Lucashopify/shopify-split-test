@@ -95,6 +95,24 @@
 
     if (changed) saveAsgn(asgn);
 
+    /* ── Shopify Markets helpers ─────────────────────────────────────── */
+    // Shopify sets routes.root to the market subfolder, e.g. "/en-us/" or "/"
+    function marketRoot() {
+      return (w.Shopify && w.Shopify.routes && w.Shopify.routes.root) || '/';
+    }
+    // Strip the market prefix so "/en-us/products/shirt" → "/products/shirt"
+    function stripMarket(path) {
+      var root = marketRoot();
+      if (root === '/') return path;
+      return path.indexOf(root) === 0 ? '/' + path.slice(root.length) : path;
+    }
+    // Prepend the market prefix to a root-relative URL
+    function withMarket(url) {
+      var root = marketRoot();
+      if (root === '/') return url;
+      return root + url.replace(/^\//, '');
+    }
+
     /* apply variant-specific behaviour */
     for (var k = 0; k < exps.length; k++) {
       var eA = exps[k];
@@ -105,8 +123,9 @@
       for (var m = 0; m < vs2.length; m++) { if (vs2[m].id === vId) { av = vs2[m]; break; } }
       if (!av || av.isControl) continue;
       if (eA.type === 'URL_REDIRECT' && av.redirectUrl) {
-        if (location.pathname + location.search !== av.redirectUrl && location.href !== av.redirectUrl) {
-          clearTimeout(safetyTimer); w.location.replace(av.redirectUrl); return;
+        var strippedPath = stripMarket(location.pathname) + location.search;
+        if (strippedPath !== av.redirectUrl && location.href !== av.redirectUrl) {
+          clearTimeout(safetyTimer); w.location.replace(withMarket(av.redirectUrl)); return;
         }
       }
       if (eA.type === 'PRICE' && av.priceAdjValue != null) {
@@ -118,13 +137,14 @@
         var tParams = new URLSearchParams(location.search);
         if (tParams.get('view') !== viewName) {
           var tmpl = eA.targetTemplate;
+          var canonicalPath = stripMarket(location.pathname);
           var applies = true;
-          if (tmpl === 'product') applies = /^\/products\//.test(location.pathname);
-          else if (tmpl === 'collection') applies = /^\/collections\//.test(location.pathname);
-          else if (tmpl === 'page') applies = /^\/pages\//.test(location.pathname);
-          else if (tmpl === 'index') applies = location.pathname === '/';
-          else if (tmpl === 'blog') applies = /^\/blogs\/[^/]+\/?$/.test(location.pathname);
-          else if (tmpl === 'article') applies = /^\/blogs\/.+\/.+/.test(location.pathname);
+          if (tmpl === 'product') applies = /^\/products\//.test(canonicalPath);
+          else if (tmpl === 'collection') applies = /^\/collections\//.test(canonicalPath);
+          else if (tmpl === 'page') applies = /^\/pages\//.test(canonicalPath);
+          else if (tmpl === 'index') applies = canonicalPath === '/';
+          else if (tmpl === 'blog') applies = /^\/blogs\/[^/]+\/?$/.test(canonicalPath);
+          else if (tmpl === 'article') applies = /^\/blogs\/.+\/.+/.test(canonicalPath);
           if (applies) {
             tParams.set('view', viewName);
             clearTimeout(safetyTimer);
@@ -313,6 +333,14 @@
       var adjType = html.getAttribute('data-spt-price-adj-type');
       var adjValue = parseFloat(html.getAttribute('data-spt-price-adj-value') || '');
       if (!adjType || isNaN(adjValue)) return;
+      // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
+      // Percentage adjustments are currency-neutral so always apply.
+      // The actual checkout discount (Shopify Function) is always correct regardless.
+      if (adjType === 'fixed') {
+        var shopCurrency = w.Shopify && w.Shopify.currency;
+        var rate = shopCurrency && parseFloat(shopCurrency.rate);
+        if (rate && rate !== 1) return;
+      }
       var sels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
       var seen = new WeakSet();
       sels.forEach(function (sel) {
