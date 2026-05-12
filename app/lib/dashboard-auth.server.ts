@@ -118,7 +118,11 @@ export async function requireDashboardSession(request: Request) {
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&state=${state}` +
       `&grant_options[]=offline`;
-    throw redirect(oauthUrl);
+    // Use window.top to break out of Shopify Admin iframe before redirecting to OAuth
+    throw new Response(
+      `<!DOCTYPE html><html><head><script>window.top.location.href = ${JSON.stringify(oauthUrl)};</script></head><body></body></html>`,
+      { status: 200, headers: { "Content-Type": "text/html" } },
+    );
   }
 
   let token = dbShop.accessToken;
