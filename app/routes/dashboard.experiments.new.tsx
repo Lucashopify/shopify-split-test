@@ -17,7 +17,7 @@ const EXPERIMENT_TYPES = [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, shop, restFetch, shopId, billingPlanName } = await requireDashboardSession(request);
+  const { admin, shop, restFetch, shopId, billingPlanName, currency } = await requireDashboardSession(request);
   const [themes, templateFiles, segments, planLimits] = await Promise.all([
     getThemes(admin, restFetch, shop).catch(() => [] as Array<{ id: string; name: string; role: string; iconUrl: string | null }>),
     getThemeTemplateFiles(restFetch).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
@@ -28,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ...t,
     updatedLabel: new Date(t.updatedAt).toISOString().slice(0, 10),
   }));
-  return { themes: themesWithDate, templateFiles, segments, planLimits };
+  return { themes: themesWithDate, templateFiles, segments, planLimits, currency };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -129,7 +129,7 @@ const helpText: React.CSSProperties = {
 };
 
 export default function NewExperiment() {
-  const { themes, templateFiles, segments, planLimits } = useLoaderData<typeof loader>();
+  const { themes, templateFiles, segments, planLimits, currency } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -338,7 +338,7 @@ export default function NewExperiment() {
                           {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
                           <div style={{ flex: 1, overflow: "hidden" }}>
                             <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
-                            <div style={{ fontSize: "0.75rem", color: "#aaa" }}>${p.price}</div>
+                            <div style={{ fontSize: "0.75rem", color: "#aaa" }}>{new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(p.price))}</div>
                           </div>
                         </div>
                       ))}

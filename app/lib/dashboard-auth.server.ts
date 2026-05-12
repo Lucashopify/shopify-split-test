@@ -172,5 +172,5 @@ export async function requireDashboardSession(request: Request) {
       },
     });
 
-  return { session: { shop }, shop, admin, restFetch, headers: new Headers({ "Set-Cookie": setCookie }), setCookie, shopId: dbShop.id, myshopifyDomain: dbShop.myshopifyDomain ?? shop, billingPlanName: dbShop.billingPlan?.planName ?? "free_trial" };
+  return { session: { shop }, shop, admin, restFetch, headers: new Headers({ "Set-Cookie": setCookie }), setCookie, shopId: dbShop.id, myshopifyDomain: dbShop.myshopifyDomain ?? shop, billingPlanName: dbShop.billingPlan?.planName ?? "free_trial", currency: dbShop.currency ?? "USD" };
 }
