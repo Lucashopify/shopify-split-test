@@ -155,15 +155,15 @@ export default function NewExperiment() {
   const productSearchRef = useRef<HTMLDivElement>(null);
   const productFetcher = useFetcher<{ products: Array<{ id: string; title: string; imageUrl: string | null; price: string }> }>();
 
-  // Debounced product search (empty query returns all products)
+  // Load products when dropdown opens or search query changes
   useEffect(() => {
-    if (type !== "PRICE") { setShowProductResults(false); return; }
+    if (!showProductResults || type !== "PRICE") return;
     const timer = setTimeout(() => {
       productFetcher.load(`/api/products/search?q=${encodeURIComponent(productSearch)}`);
     }, productSearch.trim() ? 300 : 0);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productSearch, type]);
+  }, [productSearch, showProductResults, type]);
 
   // Close product dropdown on outside click
   useEffect(() => {
@@ -310,44 +310,94 @@ export default function NewExperiment() {
             {/* Product picker */}
             <div ref={productSearchRef} style={{ position: "relative" }}>
               <label style={label}>Target product</label>
-              {targetProductId ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6, background: "#f9fafb" }}>
-                  <span style={{ flex: 1, fontSize: "0.875rem", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{targetProductTitle}</span>
-                  <button type="button" onClick={() => { setTargetProductId(""); setTargetProductTitle(""); setProductSearch(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "1rem", padding: 0, lineHeight: 1 }}>×</button>
-                </div>
-              ) : (
-                <>
-                  <input
-                    style={input}
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    onFocus={() => setShowProductResults(true)}
-                    placeholder="Search products…"
-                    autoComplete="off"
-                  />
-                  {showProductResults && productFetcher.data?.products && productFetcher.data.products.length > 0 && !targetProductId && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.08)", maxHeight: 220, overflowY: "auto" }}>
-                      {productFetcher.data.products.map((p) => (
-                        <div
-                          key={p.id}
-                          onMouseDown={() => { setTargetProductId(p.id); setTargetProductTitle(p.title); setProductSearch(""); setShowProductResults(false); }}
-                          style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.5rem 0.75rem", cursor: "pointer", fontSize: "0.875rem", color: "#111" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f5f5f5")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                        >
-                          {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
-                          <div style={{ flex: 1, overflow: "hidden" }}>
-                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
-                            <div style={{ fontSize: "0.75rem", color: "#aaa" }}>{new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(p.price))}</div>
-                          </div>
-                        </div>
-                      ))}
+              {/* Trigger button */}
+              <button
+                type="button"
+                onClick={() => { setShowProductResults((v) => !v); }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: "0.625rem",
+                  padding: "0.5rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6,
+                  background: "#fff", cursor: "pointer", textAlign: "left",
+                  fontSize: "0.875rem", color: targetProductId ? "#111" : "#aaa",
+                  boxSizing: "border-box",
+                }}
+              >
+                {targetProductId ? (
+                  <>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{targetProductTitle}</span>
+                    <span
+                      onMouseDown={(e) => { e.stopPropagation(); setTargetProductId(""); setTargetProductTitle(""); setProductSearch(""); setShowProductResults(false); }}
+                      style={{ color: "#bbb", fontSize: "1rem", lineHeight: 1, padding: "0 2px" }}
+                    >×</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ flex: 1 }}>Select a product…</span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, color: "#aaa" }}>
+                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+
+              {/* Dropdown */}
+              {showProductResults && !targetProductId && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
+                  background: "#fff", border: "1px solid #e9e9e9", borderRadius: 8,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.10)", overflow: "hidden",
+                }}>
+                  {/* Search input inside dropdown */}
+                  <div style={{ padding: "0.5rem", borderBottom: "1px solid #f0f0f0" }}>
+                    <div style={{ position: "relative" }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#bbb", pointerEvents: "none" }}>
+                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4"/>
+                        <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                      </svg>
+                      <input
+                        autoFocus
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Search products…"
+                        autoComplete="off"
+                        style={{
+                          width: "100%", padding: "0.4rem 0.625rem 0.4rem 2rem",
+                          border: "1px solid #e9e9e9", borderRadius: 6,
+                          fontSize: "0.8125rem", color: "#111", outline: "none",
+                          boxSizing: "border-box", background: "#fafafa",
+                        }}
+                      />
                     </div>
-                  )}
-                  {showProductResults && productSearch.trim() && productFetcher.data?.products?.length === 0 && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, padding: "0.75rem", fontSize: "0.8125rem", color: "#aaa" }}>No products found.</div>
-                  )}
-                </>
+                  </div>
+
+                  {/* Product list */}
+                  <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                    {productFetcher.state === "loading" && (
+                      <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.8125rem", color: "#bbb" }}>Loading…</div>
+                    )}
+                    {productFetcher.state !== "loading" && productFetcher.data?.products?.length === 0 && (
+                      <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.8125rem", color: "#bbb" }}>No products found.</div>
+                    )}
+                    {productFetcher.state !== "loading" && (productFetcher.data?.products ?? []).map((p) => (
+                      <div
+                        key={p.id}
+                        onMouseDown={() => { setTargetProductId(p.id); setTargetProductTitle(p.title); setProductSearch(""); setShowProductResults(false); }}
+                        style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.5rem 0.75rem", cursor: "pointer" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f7f7f7")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
+                      >
+                        {p.imageUrl
+                          ? <img src={p.imageUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #f0f0f0" }} />
+                          : <div style={{ width: 40, height: 40, borderRadius: 6, background: "#f0f0f0", flexShrink: 0 }} />
+                        }
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div style={{ fontSize: "0.875rem", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{p.title}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#999", marginTop: 1 }}>{new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(p.price))}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
               <p style={helpText}>The product whose price will be adjusted for the test variant.</p>
             </div>
