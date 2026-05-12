@@ -101,6 +101,7 @@ model Experiment {
   targetUrl             String?          // URL or pattern for URL-redirect tests
   targetPageHandle      String?
   targetProductId       String?          // Shopify product GID for PRICE tests
+  targetSelector        String?          // CSS selector for SECTION/PAGE tests
   shopifyDiscountId     String?          // gid://shopify/DiscountAutomaticApp/... for PRICE tests
 
   // Traffic

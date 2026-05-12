@@ -339,13 +339,25 @@
         if (!cVId) continue;
         var cVars = eC.variants || [], cV = null;
         for (var cj = 0; cj < cVars.length; cj++) { if (cVars[cj].id === cVId) { cV = cVars[cj]; break; } }
+
+        // CSS selector approach — no theme editing required
+        if (eC.targetSelector) {
+          try {
+            var targets = d.querySelectorAll(eC.targetSelector);
+            for (var ct = 0; ct < targets.length; ct++) {
+              if (cV && cV.content && !cV.isControl) targets[ct].innerHTML = cV.content;
+            }
+          } catch (e) { /* invalid selector — skip */ }
+        }
+
+        // Legacy: data-spt-section attribute fallback
         var els = d.querySelectorAll('[data-spt-section="' + eC.id + '"]');
         for (var cp = 0; cp < els.length; cp++) {
-          if (cV && cV.content) els[cp].innerHTML = cV.content;
+          if (cV && cV.content && !cV.isControl) els[cp].innerHTML = cV.content;
           els[cp].style.visibility = '';
         }
       }
-      // Reveal any unmatched containers (experiment not running, no assignment, etc.)
+      // Reveal any legacy unmatched containers
       var all = d.querySelectorAll('[data-spt-section]');
       for (var cq = 0; cq < all.length; cq++) { all[cq].style.visibility = ''; }
     }

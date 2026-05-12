@@ -87,6 +87,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
       targetProductId: exp.targetProductId,
+      targetSelector: exp.targetSelector,
       segment: exp.segment,
       variants: exp.variants.map((v) => ({
         id: v.id,

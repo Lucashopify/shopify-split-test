@@ -43,6 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const controlName = String(formData.get("controlName") ?? "Control").trim();
   const variantName = String(formData.get("variantName") ?? "Variant B").trim();
   const targetProductId = type === "PRICE" ? String(formData.get("targetProductId") ?? "").trim() || null : null;
+  const targetSelector = ["SECTION", "PAGE"].includes(type) ? String(formData.get("targetSelector") ?? "").trim() || null : null;
 
   if (!name) return { error: "Experiment name is required." };
   if (!type) return { error: "Experiment type is required." };
@@ -86,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       segmentId,
       targetTemplate: templateType,
       targetProductId,
+      targetSelector,
       variants: { create: [{ name: controlName, isControl: true, trafficWeight: 50 }, variantBData as any] },
     },
   });
@@ -146,6 +148,7 @@ export default function NewExperiment() {
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
   const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
   const [variantCustomLiquid, setVariantCustomLiquid] = useState("");
+  const [targetSelector, setTargetSelector] = useState("");
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
   const [targetProductId, setTargetProductId] = useState("");
@@ -197,7 +200,7 @@ export default function NewExperiment() {
     if (type === "THEME") fd.set("variantThemeId", variantThemeId);
     if (type === "URL_REDIRECT") fd.set("variantRedirectUrl", variantRedirectUrl);
     if (type === "PRICE") { fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); fd.set("targetProductId", targetProductId); }
-    if (["SECTION", "PAGE"].includes(type)) fd.set("variantCustomLiquid", variantCustomLiquid);
+    if (["SECTION", "PAGE"].includes(type)) { fd.set("variantCustomLiquid", variantCustomLiquid); fd.set("targetSelector", targetSelector); }
     if (type === "TEMPLATE") { fd.set("variantViewName", variantViewName); fd.set("templateType", templateType); }
     if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
@@ -425,15 +428,28 @@ export default function NewExperiment() {
         )}
 
         {["SECTION", "PAGE"].includes(type) && (
-          <div>
-            <label style={label}>{variantName || "Variant B"} HTML content</label>
-            <textarea
-              style={{ ...input, minHeight: 180, resize: "vertical", fontFamily: "monospace", fontSize: "0.8125rem" }}
-              value={variantCustomLiquid}
-              onChange={(e) => setVariantCustomLiquid(e.target.value)}
-              placeholder={"<p class=\"hero__subtitle\">Summer sale — up to 40% off</p>\n<a href=\"/collections/sale\" class=\"button\">Shop now</a>"}
-            />
-            <p style={helpText}>Injected via the Variant Content app block in the Theme Editor.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label style={label}>Target element (CSS selector)</label>
+              <input
+                style={input}
+                value={targetSelector}
+                onChange={(e) => setTargetSelector(e.target.value)}
+                placeholder=".hero__inner, #product-description, section.featured-collection"
+                autoComplete="off"
+              />
+              <p style={helpText}>The element whose content will be swapped for the variant. Right-click the element on your storefront → Inspect → copy the selector. No theme editing required.</p>
+            </div>
+            <div>
+              <label style={label}>{variantName || "Variant B"} HTML content</label>
+              <textarea
+                style={{ ...input, minHeight: 180, resize: "vertical", fontFamily: "monospace", fontSize: "0.8125rem" }}
+                value={variantCustomLiquid}
+                onChange={(e) => setVariantCustomLiquid(e.target.value)}
+                placeholder={"<p class=\"hero__subtitle\">Summer sale — up to 40% off</p>\n<a href=\"/collections/sale\" class=\"button\">Shop now</a>"}
+              />
+              <p style={helpText}>Replaces the inner HTML of the target element for visitors assigned to this variant.</p>
+            </div>
           </div>
         )}
 
