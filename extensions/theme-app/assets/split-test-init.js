@@ -56,6 +56,7 @@
       utmMedium: _urlParams.get('utm_medium') || '',
       utmCampaign: _urlParams.get('utm_campaign') || '',
       referrer: d.referrer || '',
+      market: (w.Shopify && w.Shopify.routes && w.Shopify.routes.root) || '/',
     };
     function matchSegment(seg) {
       if (!seg || !seg.rules) return true;
@@ -64,7 +65,7 @@
       if (!children.length) return true;
       // device is only resolvable after DOMContentLoaded, approximate now from window.innerWidth
       var deviceNow = w.innerWidth < 768 ? 'mobile' : w.innerWidth < 1024 ? 'tablet' : 'desktop';
-      var attrs = { device: deviceNow, utmSource: _clientAttrs.utmSource, utmMedium: _clientAttrs.utmMedium, utmCampaign: _clientAttrs.utmCampaign, referrer: _clientAttrs.referrer };
+      var attrs = { device: deviceNow, utmSource: _clientAttrs.utmSource, utmMedium: _clientAttrs.utmMedium, utmCampaign: _clientAttrs.utmCampaign, referrer: _clientAttrs.referrer, market: _clientAttrs.market };
       var results = children.map(function(child) {
         if (!(child.field in attrs)) return true; // server-only field (country, customerType) → allow client-side
         var val = (attrs[child.field] || '').toLowerCase();

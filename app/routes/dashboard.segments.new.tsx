@@ -6,7 +6,7 @@ import { prisma } from "../db.server";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type RuleField = "device" | "customerType" | "country" | "utmSource" | "utmMedium" | "utmCampaign" | "referrer";
+type RuleField = "device" | "customerType" | "country" | "utmSource" | "utmMedium" | "utmCampaign" | "referrer" | "market";
 type RuleOp = "eq" | "neq" | "contains";
 
 type Rule = { id: string; field: RuleField; op: RuleOp; value: string };
@@ -50,6 +50,7 @@ const FIELDS: { value: RuleField; label: string; type: "select" | "text"; option
   ]},
   { value: "utmCampaign",  label: "UTM campaign",  type: "text" },
   { value: "referrer",     label: "Referrer URL",  type: "text" },
+  { value: "market",       label: "Market",        type: "text" },
 ];
 
 const OPS_FOR: Record<string, { value: RuleOp; label: string }[]> = {
@@ -263,7 +264,7 @@ export default function NewSegmentPage() {
                       type="text"
                       value={rule.value}
                       onChange={(e) => updateRule(rule.id, { value: e.target.value })}
-                      placeholder={rule.field === "country" ? "e.g. US" : "Enter value"}
+                      placeholder={rule.field === "country" ? "e.g. US" : rule.field === "market" ? "e.g. /en-us/" : "Enter value"}
                       style={{ ...inputStyle, flex: 1 }}
                     />
                   )}
