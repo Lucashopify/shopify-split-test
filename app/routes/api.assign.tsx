@@ -2,9 +2,16 @@ import { type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { prisma } from "../db.server";
 import { assignVisitor } from "../lib/assignment/assign.server";
 import { corsHeaders, handlePreflight, jsonResponse } from "../lib/cors.server";
+import { checkRateLimit, getClientIp } from "../lib/rate-limit.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") return handlePreflight(request);
+
+  // 60 requests per minute per IP
+  const ip = getClientIp(request);
+  if (!checkRateLimit(`assign:${ip}`, 60, 60_000)) {
+    return jsonResponse({ error: "Too many requests" }, request, { status: 429 });
+  }
 
   let body: Record<string, unknown>;
   try {
