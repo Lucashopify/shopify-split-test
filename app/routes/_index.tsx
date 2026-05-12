@@ -1,6 +1,7 @@
 import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Form } from "react-router";
 import { login } from "../shopify.server";
+import { REQUIRED_SCOPES } from "../lib/scopes";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -20,7 +21,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const normalized = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
     const appUrl = process.env.SHOPIFY_APP_URL ?? "";
     const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-    const scopes = process.env.SCOPES ?? "";
+    const scopes = REQUIRED_SCOPES;
     const redirectUri = `${appUrl}/auth/callback`;
     const state = Math.random().toString(36).slice(2);
     throw redirect(
