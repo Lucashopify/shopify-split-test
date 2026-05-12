@@ -97,7 +97,7 @@ export async function requireDashboardSession(request: Request) {
 
   if (!dbShop?.accessToken) throw redirect(`/?shop=${shop}`);
 
-  // Check for missing scopes — redirect to OAuth if new scopes were added
+  // Check for missing scopes — redirect to Shopify OAuth if new scopes were added
   const REQUIRED_SCOPES = [
     "read_products", "write_products",
     "read_themes", "write_themes",
@@ -106,7 +106,19 @@ export async function requireDashboardSession(request: Request) {
   const grantedScopes = (dbShop.scopes ?? "").split(",").map((s) => s.trim());
   const missingScopes = REQUIRED_SCOPES.filter((s) => !grantedScopes.includes(s));
   if (missingScopes.length > 0) {
-    throw redirect(`/auth?shop=${shop}`);
+    const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
+    const apiKey = process.env.SHOPIFY_API_KEY ?? "";
+    const scopes = REQUIRED_SCOPES.join(",");
+    const redirectUri = `${appUrl}/auth/callback`;
+    const state = Math.random().toString(36).slice(2);
+    const oauthUrl =
+      `https://${shop}/admin/oauth/authorize` +
+      `?client_id=${apiKey}` +
+      `&scope=${encodeURIComponent(scopes)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&state=${state}` +
+      `&grant_options[]=offline`;
+    throw redirect(oauthUrl);
   }
 
   let token = dbShop.accessToken;
