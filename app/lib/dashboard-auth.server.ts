@@ -98,10 +98,12 @@ export async function requireDashboardSession(request: Request) {
   if (!dbShop?.accessToken) throw redirect(`/?shop=${shop}`);
 
   // Check for missing scopes — redirect to Shopify OAuth if new scopes were added
+  // Only check scopes that Shopify lists explicitly (read_X is implied by write_X)
   const REQUIRED_SCOPES = [
-    "read_products", "write_products",
-    "read_themes", "write_themes",
-    "read_orders", "write_discounts",
+    "write_products",
+    "write_themes",
+    "read_orders",
+    "write_discounts",
   ];
   const grantedScopes = (dbShop.scopes ?? "").split(",").map((s) => s.trim());
   const missingScopes = REQUIRED_SCOPES.filter((s) => !grantedScopes.includes(s));
