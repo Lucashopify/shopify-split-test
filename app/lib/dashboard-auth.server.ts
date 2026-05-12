@@ -106,23 +106,7 @@ export async function requireDashboardSession(request: Request) {
   const grantedScopes = (dbShop.scopes ?? "").split(",").map((s) => s.trim());
   const missingScopes = REQUIRED_SCOPES.filter((s) => !grantedScopes.includes(s));
   if (missingScopes.length > 0) {
-    const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
-    const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-    const scopes = REQUIRED_SCOPES.join(",");
-    const redirectUri = `${appUrl}/auth/callback`;
-    const state = Math.random().toString(36).slice(2);
-    const oauthUrl =
-      `https://${shop}/admin/oauth/authorize` +
-      `?client_id=${apiKey}` +
-      `&scope=${encodeURIComponent(scopes)}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${state}` +
-      `&grant_options[]=offline`;
-    // Use window.top to break out of Shopify Admin iframe before redirecting to OAuth
-    throw new Response(
-      `<!DOCTYPE html><html><head><script>window.top.location.href = ${JSON.stringify(oauthUrl)};</script></head><body></body></html>`,
-      { status: 200, headers: { "Content-Type": "text/html" } },
-    );
+    throw redirect(`/reauth?shop=${shop}`);
   }
 
   let token = dbShop.accessToken;
