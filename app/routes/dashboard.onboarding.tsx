@@ -37,22 +37,19 @@ async function isEmbedEnabled(
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, setCookie, restFetch } = await requireDashboardSession(request);
-
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+  const { session, setCookie, restFetch, shopId, myshopifyDomain, billingPlanName } = await requireDashboardSession(request);
 
   const [experimentCount, runningCount, planLimits, embedEnabled] = await Promise.all([
-    prisma.experiment.count({ where: { shopId: shop.id } }),
-    prisma.experiment.count({ where: { shopId: shop.id, status: "RUNNING" } }),
-    getPlanLimits(shop.id),
+    prisma.experiment.count({ where: { shopId } }),
+    prisma.experiment.count({ where: { shopId, status: "RUNNING" } }),
+    getPlanLimits(shopId, billingPlanName),
     isEmbedEnabled(restFetch),
   ]);
 
   return Response.json(
     {
       shop: session.shop,
-      myshopifyDomain: shop.myshopifyDomain ?? session.shop,
+      myshopifyDomain: myshopifyDomain ?? session.shop,
       embedActive: embedEnabled,
       hasExperiment: experimentCount > 0,
       hasRunning: runningCount > 0,

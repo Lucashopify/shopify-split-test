@@ -10,13 +10,10 @@ import { syncConfigToMetafield } from "../lib/experiments/config.server";
 import type { ExperimentStatus, ExperimentType } from "@prisma/client";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session, setCookie } = await requireDashboardSession(request);
-
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
+  const { session, setCookie, shopId, billingPlanName } = await requireDashboardSession(request);
 
   const experiment = await prisma.experiment.findFirst({
-    where: { id: params.id, shopId: shop.id },
+    where: { id: params.id, shopId },
     include: {
       variants: {
         orderBy: [{ isControl: "desc" }, { createdAt: "asc" }],
@@ -29,7 +26,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!experiment) throw new Response("Experiment not found", { status: 404 });
 
   const segments = await prisma.segment.findMany({
-    where: { shopId: shop.id },
+    where: { shopId },
     select: { id: true, name: true },
     orderBy: { createdAt: "desc" },
   });
@@ -202,20 +199,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     visitorType: mergeDim(vtEvents, vtOrders),
   };
 
-  const planLimits = await getPlanLimits(shop.id);
+  const planLimits = await getPlanLimits(shopId, billingPlanName);
   return data({ experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session, admin } = await requireDashboardSession(request);
+  const { session, admin, shopId } = await requireDashboardSession(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
 
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) return { error: "Shop not found" };
-
   const exp = await prisma.experiment.findFirst({
-    where: { id: params.id, shopId: shop.id },
+    where: { id: params.id, shopId },
+    include: { variants: true },
   });
   if (!exp) return { error: "Not found" };
 
@@ -236,9 +231,40 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         ...(newStatus === "RUNNING" && !exp.startAt ? { startAt: new Date() } : {}),
       },
     });
+
+    // Manage Shopify discount for PRICE experiments
+    if (exp.type === "PRICE") {
+      const { createPriceDiscount, deletePriceDiscount } = await import("../lib/discounts.server");
+      if (newStatus === "RUNNING" && exp.targetProductId) {
+        // Create automatic discount when experiment starts/resumes
+        const discountId = await createPriceDiscount(
+          admin,
+          {
+            experimentId: exp.id,
+            targetProductId: exp.targetProductId,
+            variants: exp.variants.map((v) => ({
+              id: v.id,
+              isControl: v.isControl,
+              priceAdjType: v.priceAdjType,
+              priceAdjValue: v.priceAdjValue,
+            })),
+          },
+          exp.name,
+        ).catch((err) => { console.error("[action] createPriceDiscount failed:", err); return null; });
+        if (discountId) {
+          await prisma.experiment.update({ where: { id: exp.id }, data: { shopifyDiscountId: discountId } });
+        }
+      } else if (exp.shopifyDiscountId) {
+        // Delete discount when experiment stops, pauses, completes, or archives
+        await deletePriceDiscount(admin, exp.shopifyDiscountId, exp.id).catch((err) =>
+          console.error("[action] deletePriceDiscount failed:", err),
+        );
+      }
+    }
+
     await prisma.auditLog.create({
       data: {
-        shopId: shop.id,
+        shopId,
         experimentId: exp.id,
         actor: "merchant",
         action: `experiment.status.${newStatus.toLowerCase()}`,
@@ -247,7 +273,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       },
     });
     try {
-      await syncConfigToMetafield(admin, shop.id);
+      await syncConfigToMetafield(admin, shopId);
     } catch (err) {
       console.error("[action] Failed to sync config metafield:", err);
     }
@@ -261,7 +287,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       data: { segmentId: segmentId ? String(segmentId) : null },
     });
     try {
-      await syncConfigToMetafield(admin, shop.id);
+      await syncConfigToMetafield(admin, shopId);
     } catch (err) {
       console.error("[action] Failed to sync config metafield:", err);
     }
@@ -352,6 +378,8 @@ export default function ExperimentDetail() {
   const isSignificant = bestResult?.pValue != null && bestResult.pValue < 0.05;
   const headerLift = bestResult?.liftPct;
 
+  const stoppedEarlyNoSignificance = status === "COMPLETED" && !isSignificant && totalSessions > 0;
+
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 860, margin: "0 auto" }}>
       {/* Header */}
@@ -441,6 +469,19 @@ export default function ExperimentDetail() {
           </div>
         </div>
       </div>
+
+      {/* Stopped early without significance warning */}
+      {stoppedEarlyNoSignificance && (
+        <div style={{ marginBottom: "1.25rem", padding: "1rem 1.25rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+          <span style={{ fontSize: "1rem", flexShrink: 0, marginTop: 1 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e", marginBottom: "0.2rem" }}>No clear winner detected</div>
+            <div style={{ fontSize: "0.8125rem", color: "#78350f", lineHeight: 1.6 }}>
+              This experiment was stopped before reaching statistical significance. Results may be inconclusive — consider running it longer or with more traffic before acting on the data.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Per-variant metric cards */}
       {status !== "DRAFT" && (

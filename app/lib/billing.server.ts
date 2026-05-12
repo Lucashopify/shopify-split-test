@@ -48,15 +48,14 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
   },
 };
 
-export async function getPlanLimits(shopId: string): Promise<PlanLimits & { planName: string }> {
-  const plan = await prisma.billingPlan.findUnique({ where: { shopId } });
-  const planName = plan?.planName ?? "free_trial";
+export async function getPlanLimits(shopId: string, preloadedPlanName?: string | null): Promise<PlanLimits & { planName: string }> {
+  const planName = preloadedPlanName ?? (await prisma.billingPlan.findUnique({ where: { shopId } }))?.planName ?? "free_trial";
   const limits = PLAN_LIMITS[planName] ?? PLAN_LIMITS.free_trial;
   return { ...limits, planName };
 }
 
-export async function checkExperimentLimit(shopId: string): Promise<{ allowed: boolean; reason?: string }> {
-  const limits = await getPlanLimits(shopId);
+export async function checkExperimentLimit(shopId: string, preloadedPlanName?: string | null): Promise<{ allowed: boolean; reason?: string }> {
+  const limits = await getPlanLimits(shopId, preloadedPlanName);
   if (limits.maxRunningExperiments === -1) return { allowed: true };
 
   const running = await prisma.experiment.count({ where: { shopId, status: "RUNNING" } });

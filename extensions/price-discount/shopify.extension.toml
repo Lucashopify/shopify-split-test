@@ -1,0 +1,13 @@
+api_version = "2025-07"
+
+[[extensions]]
+name = "Split Test Price Discount"
+handle = "split-test-price-discount"
+uid = "019f5eeb-d2fc-12ef-a6c5-753a360aa36a33d1c7de"
+type = "product_discounts"
+api_version = "2025-07"
+
+[extensions.build]
+command = "sh build.sh"
+path = "dist/function.wasm"
+watch = ["src/**/*.{js,graphql}"]

@@ -1,8 +1,9 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+# Staging app — Arktic split-test beta
+# Deploy: shopify app deploy --config shopify.app.staging.toml
 
-client_id = "842285b54c003859a0ca5d6b5e1b74ad"
-name = "Arktic - A/B Split test"
-application_url = "https://app.arkticstudio.com"
+client_id = "01bfe62b2cca666a06343ce82a922531"
+name = "Arktic Split test beta 2.0"
+application_url = "https://amused-bravery-staging.up.railway.app"
 embedded = false
 
 [build]
@@ -15,9 +16,12 @@ scopes = "read_products,write_products,read_themes,write_themes,read_orders,writ
 
 [auth]
 redirect_urls = [
-  "https://app.arkticstudio.com/auth/callback",
-  "https://app.arkticstudio.com/auth/shopify/callback",
-  "https://app.arkticstudio.com/api/auth/callback",
+  "https://amused-bravery-staging.up.railway.app/auth/callback",
+  "https://amused-bravery-staging.up.railway.app/auth/shopify/callback",
+  "https://amused-bravery-staging.up.railway.app/api/auth/callback",
+  "https://staging.arkticstudio.com/auth/callback",
+  "https://staging.arkticstudio.com/auth/shopify/callback",
+  "https://staging.arkticstudio.com/api/auth/callback",
 ]
 
 [webhooks]
@@ -32,14 +36,6 @@ api_version = "2025-01"
   uri = "/webhooks"
 
   [[webhooks.subscriptions]]
-  topics = ["orders/create", "orders/paid"]
-  uri = "/webhooks"
-
-  [[webhooks.subscriptions]]
-  topics = ["orders/cancelled", "orders/updated"]
-  uri = "/webhooks"
-
-  [[webhooks.subscriptions]]
   topics = ["themes/create", "themes/update", "themes/delete"]
   uri = "/webhooks"
 
@@ -47,11 +43,12 @@ api_version = "2025-01"
   topics = ["app_subscriptions/update"]
   uri = "/webhooks"
 
+  # orders/create, orders/paid, orders/cancelled, orders/updated require protected
+  # customer data approval — add back once staging app is approved in Partner Dashboard
+
   [[webhooks.subscriptions]]
   compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
   uri = "/webhooks"
-
-
 
 [pos]
 embedded = false

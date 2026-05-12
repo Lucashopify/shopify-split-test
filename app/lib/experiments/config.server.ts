@@ -36,6 +36,7 @@ export type ExperimentConfigEntry = {
   trafficAllocation: number;
   targetTemplate: string | null;
   targetUrl: string | null;
+  targetProductId: string | null;
   segment: { id: string; rules: unknown } | null;
   variants: Array<{
     id: string;
@@ -85,6 +86,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       trafficAllocation: exp.trafficAllocation,
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
+      targetProductId: exp.targetProductId,
       segment: exp.segment,
       variants: exp.variants.map((v) => ({
         id: v.id,

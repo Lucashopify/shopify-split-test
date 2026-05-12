@@ -1,0 +1,44 @@
+type Query {
+  cart: Cart!
+  discountNode: DiscountNode!
+}
+
+type Cart {
+  attribute(key: String!): CartAttribute
+  lines: [CartLine!]!
+}
+
+type CartAttribute {
+  value: String
+}
+
+type CartLine {
+  id: ID!
+  quantity: Int!
+  merchandise: CartLineMerchandise
+}
+
+union CartLineMerchandise = ProductVariant
+
+type ProductVariant {
+  product: Product!
+  price: MoneyV2!
+}
+
+type Product {
+  id: ID!
+}
+
+type MoneyV2 {
+  amount: Decimal!
+}
+
+scalar Decimal
+
+type DiscountNode {
+  metafield(namespace: String!, key: String!): Metafield
+}
+
+type Metafield {
+  value: String!
+}

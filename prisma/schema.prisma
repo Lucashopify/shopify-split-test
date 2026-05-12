@@ -100,6 +100,8 @@ model Experiment {
   targetTemplate        String?          // "product" | "collection" | "page" | etc.
   targetUrl             String?          // URL or pattern for URL-redirect tests
   targetPageHandle      String?
+  targetProductId       String?          // Shopify product GID for PRICE tests
+  shopifyDiscountId     String?          // gid://shopify/DiscountAutomaticApp/... for PRICE tests
 
   // Traffic
   trafficAllocation     Float            @default(100)  // % of visitors exposed

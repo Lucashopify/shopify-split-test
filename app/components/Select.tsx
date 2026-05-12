@@ -117,6 +117,8 @@ export function Select({ value, onChange, options, name, style, placeholder }: S
             borderRadius: 6,
             boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             overflow: "hidden",
+            overflowY: "auto",
+            maxHeight: 260,
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
             fontSize: "0.875rem",
           }}

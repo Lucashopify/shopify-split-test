@@ -1,0 +1,26 @@
+query RunInput {
+  cart {
+    attribute(key: "_spt_asgn") {
+      value
+    }
+    lines {
+      id
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          product {
+            id
+          }
+          price {
+            amount
+          }
+        }
+      }
+    }
+  }
+  discountNode {
+    metafield(namespace: "split_test_app", key: "discount_config") {
+      value
+    }
+  }
+}
