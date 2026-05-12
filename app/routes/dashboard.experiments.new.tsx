@@ -155,13 +155,12 @@ export default function NewExperiment() {
   const productSearchRef = useRef<HTMLDivElement>(null);
   const productFetcher = useFetcher<{ products: Array<{ id: string; title: string; imageUrl: string | null; price: string }> }>();
 
-  // Debounced product search
+  // Debounced product search (empty query returns all products)
   useEffect(() => {
-    if (!productSearch.trim() || type !== "PRICE") { setShowProductResults(false); return; }
+    if (type !== "PRICE") { setShowProductResults(false); return; }
     const timer = setTimeout(() => {
       productFetcher.load(`/api/products/search?q=${encodeURIComponent(productSearch)}`);
-      setShowProductResults(true);
-    }, 300);
+    }, productSearch.trim() ? 300 : 0);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productSearch, type]);
@@ -322,11 +321,11 @@ export default function NewExperiment() {
                     style={input}
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    onFocus={() => productSearch.trim() && setShowProductResults(true)}
+                    onFocus={() => setShowProductResults(true)}
                     placeholder="Search products…"
                     autoComplete="off"
                   />
-                  {showProductResults && productFetcher.data?.products && productFetcher.data.products.length > 0 && (
+                  {showProductResults && productFetcher.data?.products && productFetcher.data.products.length > 0 && !targetProductId && (
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.08)", maxHeight: 220, overflowY: "auto" }}>
                       {productFetcher.data.products.map((p) => (
                         <div
@@ -345,7 +344,7 @@ export default function NewExperiment() {
                       ))}
                     </div>
                   )}
-                  {showProductResults && productFetcher.data?.products?.length === 0 && (
+                  {showProductResults && productSearch.trim() && productFetcher.data?.products?.length === 0 && (
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, padding: "0.75rem", fontSize: "0.8125rem", color: "#aaa" }}>No products found.</div>
                   )}
                 </>

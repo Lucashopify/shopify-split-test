@@ -6,11 +6,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
 
-  if (!q) return Response.json({ products: [] });
-
   const resp = await admin.graphql(
     `query SearchProducts($q: String!) {
-      products(first: 10, query: $q, sortKey: RELEVANCE) {
+      products(first: 10, query: $q, sortKey: ${q ? "RELEVANCE" : "TITLE"}) {
         nodes {
           id
           title
