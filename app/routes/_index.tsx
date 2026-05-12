@@ -2,6 +2,7 @@ import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "reac
 import { useLoaderData, Form } from "react-router";
 import { login } from "../shopify.server";
 import { REQUIRED_SCOPES } from "../lib/scopes";
+import { createOAuthState } from "../lib/oauth-state.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -23,14 +24,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const apiKey = process.env.SHOPIFY_API_KEY ?? "";
     const scopes = REQUIRED_SCOPES;
     const redirectUri = `${appUrl}/auth/callback`;
-    const state = Math.random().toString(36).slice(2);
+    const { state, setCookie } = await createOAuthState(request);
     throw redirect(
       `https://${normalized}/admin/oauth/authorize` +
       `?client_id=${apiKey}` +
       `&scope=${encodeURIComponent(scopes)}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&state=${state}` +
-      `&grant_options[]=offline`
+      `&grant_options[]=offline`,
+      { headers: { "Set-Cookie": setCookie } },
     );
   }
 
@@ -48,9 +50,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const normalized = shop.includes(".myshopify.com") ? shop : `${shop}.myshopify.com`;
   const appUrl = process.env.SHOPIFY_APP_URL ?? "";
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
-  const scopes = process.env.SCOPES ?? "";
+  const scopes = REQUIRED_SCOPES;
   const redirectUri = `${appUrl}/auth/callback`;
-  const state = Math.random().toString(36).slice(2);
+  const { state, setCookie } = await createOAuthState(request);
 
   const oauthUrl =
     `https://${normalized}/admin/oauth/authorize` +
@@ -60,7 +62,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     `&state=${state}` +
     `&grant_options[]=offline`;
 
-  throw redirect(oauthUrl);
+  throw redirect(oauthUrl, { headers: { "Set-Cookie": setCookie } });
 };
 
 export default function Index() {

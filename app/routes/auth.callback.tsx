@@ -1,12 +1,14 @@
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import { createHmac } from "crypto";
 import { prisma } from "../db.server";
+import { validateOAuthState, clearOAuthState } from "../lib/oauth-state.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const shop = url.searchParams.get("shop");
   const hmac = url.searchParams.get("hmac");
+  const state = url.searchParams.get("state") ?? "";
 
   console.log("[auth/callback] shop:", shop, "code:", code?.slice(0, 8));
 
@@ -14,6 +16,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[auth/callback] Missing required params");
     throw redirect("/");
   }
+
+  // Validate state to prevent CSRF
+  const stateValid = await validateOAuthState(request, state);
+  if (!stateValid) {
+    console.error("[auth/callback] State mismatch — possible CSRF");
+    throw redirect("/");
+  }
+  const clearStateCookie = await clearOAuthState(request);
 
   // Validate HMAC to confirm request is from Shopify
   const params = new URLSearchParams(url.searchParams);
@@ -211,5 +221,5 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[auth/callback] Webhook registration failed (non-fatal):", err);
   }
 
-  throw redirect(`/dashboard?shop=${shop}`);
+  throw redirect(`/dashboard?shop=${shop}`, { headers: { "Set-Cookie": clearStateCookie } });
 };

@@ -1,5 +1,6 @@
 import { type LoaderFunctionArgs } from "react-router";
 import { REQUIRED_SCOPES } from "../lib/scopes";
+import { createOAuthState } from "../lib/oauth-state.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -8,7 +9,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const apiKey = process.env.SHOPIFY_API_KEY ?? "";
   const scopes = REQUIRED_SCOPES;
   const redirectUri = `${appUrl}/auth/callback`;
-  const state = Math.random().toString(36).slice(2);
+  const { state, setCookie } = await createOAuthState(request);
   const oauthUrl =
     `https://${shop}/admin/oauth/authorize` +
     `?client_id=${apiKey}` +
@@ -19,6 +20,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return new Response(
     `<!DOCTYPE html><html><head><script>window.top.location.href = ${JSON.stringify(oauthUrl)};</script></head><body></body></html>`,
-    { status: 200, headers: { "Content-Type": "text/html" } },
+    { status: 200, headers: { "Content-Type": "text/html", "Set-Cookie": setCookie } },
   );
 };
