@@ -344,40 +344,60 @@
       // so it's safer to skip DOM manipulation on any page we can't confirm is the right product.
       var targetId = html.getAttribute('data-spt-price-product-id');
       if (targetId) {
-        // Try Shopify.product (set synchronously by most themes via {{ product | json }})
-        var currentId = w.Shopify && w.Shopify.product && String(w.Shopify.product.id);
-        // Fallback: ShopifyAnalytics.meta.product (set by Shopify's analytics layer)
-        if (!currentId && w.ShopifyAnalytics && w.ShopifyAnalytics.meta && w.ShopifyAnalytics.meta.product) {
-          currentId = String(w.ShopifyAnalytics.meta.product.id);
-        }
-        // If we can't confirm which product this page is for, or it's not the target — skip.
-        // Prevents all prices on collection / home / other product pages being modified.
+        var currentId = (w.Shopify && w.Shopify.product && String(w.Shopify.product.id)) ||
+          (w.ShopifyAnalytics && w.ShopifyAnalytics.meta && w.ShopifyAnalytics.meta.product && String(w.ShopifyAnalytics.meta.product.id));
         if (!currentId || currentId !== targetId) return;
       }
 
       // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
-      // Percentage adjustments are currency-neutral so always apply.
-      // The actual checkout discount (Shopify Function) is always correct regardless.
       if (adjType === 'fixed') {
-        var shopCurrency = w.Shopify && w.Shopify.currency;
-        var rate = shopCurrency && parseFloat(shopCurrency.rate);
+        var rate = w.Shopify && w.Shopify.currency && parseFloat(w.Shopify.currency.rate);
         if (rate && rate !== 1) return;
       }
 
+      // Detect European comma-decimal format (e.g. €520,95 vs US €520.95).
+      // Shopify exposes this via Shopify.money_format, e.g. "€{{amount_with_comma_separator}}".
+      var commaDecimal = ((w.Shopify && w.Shopify.money_format) || '').indexOf('comma_separator') !== -1;
+      // Regex matches the price number respecting the store's decimal format
+      var priceRe = commaDecimal
+        ? /\d+(?:\.\d{3})*(?:,\d{1,2})?/   // EU: 1.234,56 or 520,95
+        : /\d+(?:,\d{3})*(?:\.\d{1,2})?/;  // US: 1,234.56 or 520.95
+
+      function parsePrice(str) {
+        return commaDecimal
+          ? parseFloat(str.replace(/\./g, '').replace(',', '.'))
+          : parseFloat(str.replace(/,/g, ''));
+      }
+      function fmtPrice(n) {
+        var s = n.toFixed(2);
+        return commaDecimal ? s.replace('.', ',') : s;
+      }
+
       var sels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
+
+      // Collect unique matching elements
       var seen = new WeakSet();
-      sels.forEach(function (sel) {
-        d.querySelectorAll(sel).forEach(function (el) {
-          if (seen.has(el)) return; seen.add(el);
-          var text = el.textContent || '';
-          var match = text.match(/[\d,]+\.?\d*/);
-          if (!match) return;
-          var raw = parseFloat(match[0].replace(/,/g, ''));
-          if (isNaN(raw)) return;
-          var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
-          if (adj < 0) adj = 0;
-          el.textContent = text.replace(match[0], adj.toFixed(2));
+      var candidates = [];
+      sels.forEach(function(sel) {
+        d.querySelectorAll(sel).forEach(function(el) {
+          if (!seen.has(el)) { seen.add(el); candidates.push(el); }
         });
+      });
+
+      // Only process leaf-level elements (skip any element that contains another matched
+      // price element as a descendant) to prevent the same price being modified twice.
+      candidates.forEach(function(el) {
+        for (var si = 0; si < sels.length; si++) {
+          if (el.querySelector(sels[si])) return;
+        }
+        var text = el.textContent || '';
+        var match = text.match(priceRe);
+        if (!match) return;
+        var raw = parsePrice(match[0]);
+        if (isNaN(raw) || raw <= 0) return;
+        var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
+        if (adj < 0) adj = 0;
+        el.textContent = text.replace(match[0], fmtPrice(adj));
       });
     }
 
