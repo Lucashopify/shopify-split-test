@@ -22,6 +22,12 @@ export type PriceDiscountConfig = {
  * Look up the deployed Shopify Function ID for our price discount extension.
  */
 async function getFunctionId(admin: AdminClient): Promise<string | null> {
+  // Allow hardcoding via env var to bypass dynamic lookup if shopifyFunctions returns empty
+  if (process.env.PRICE_DISCOUNT_FUNCTION_ID) {
+    console.log("[getFunctionId] using env var:", process.env.PRICE_DISCOUNT_FUNCTION_ID);
+    return process.env.PRICE_DISCOUNT_FUNCTION_ID;
+  }
+
   const resp = await admin.graphql(`
     query GetShopifyFunctions {
       shopifyFunctions(first: 25) {
@@ -34,8 +40,8 @@ async function getFunctionId(admin: AdminClient): Promise<string | null> {
     }
   `);
   const json = await resp.json();
+  console.log("[getFunctionId] full response:", JSON.stringify(json));
   const nodes = json?.data?.shopifyFunctions?.nodes ?? [];
-  console.log("[getFunctionId] all functions:", JSON.stringify(nodes));
   const fn = nodes.find(
     (f: { handle: string; apiType: string }) =>
       f.handle === "split-test-price-discount" && f.apiType.toLowerCase() === "product_discounts",
