@@ -78,14 +78,6 @@ export async function createPriceDiscount(
           title: experimentName,
           functionId,
           startsAt: new Date().toISOString(),
-          metafields: [
-            {
-              namespace: "split_test_app",
-              key: "discount_config",
-              type: "json",
-              value: JSON.stringify(config),
-            },
-          ],
         },
       },
     },
@@ -98,7 +90,40 @@ export async function createPriceDiscount(
     return null;
   }
 
-  return data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
+  const discountId: string | null = data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
+  if (!discountId) return null;
+
+  // Explicitly set the config metafield on the discount node.
+  // Passing metafields inside DiscountAutomaticAppInput is not always reliable —
+  // using metafieldsSet guarantees the function can read it via discountNode.metafield.
+  const metaResp = await admin.graphql(
+    `mutation SetDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields { id namespace key }
+        userErrors { field message }
+      }
+    }`,
+    {
+      variables: {
+        metafields: [{
+          ownerId: discountId,
+          namespace: "split_test_app",
+          key: "discount_config",
+          type: "json",
+          value: JSON.stringify(config),
+        }],
+      },
+    },
+  );
+  const { data: metaData } = await metaResp.json();
+  const metaErrs = metaData?.metafieldsSet?.userErrors ?? [];
+  if (metaErrs.length) {
+    console.error("[discounts] Metafield set errors:", metaErrs);
+  } else {
+    console.log("[discounts] Metafield set OK:", metaData?.metafieldsSet?.metafields);
+  }
+
+  return discountId;
 }
 
 /**
