@@ -3,7 +3,7 @@
 
 client_id = "01bfe62b2cca666a06343ce82a922531"
 name = "Arktic Split test beta 2.0"
-application_url = "https://amused-bravery-staging.up.railway.app"
+application_url = "https://staging.arkticstudio.com"
 embedded = false
 
 [build]
