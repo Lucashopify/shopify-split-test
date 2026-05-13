@@ -91,6 +91,7 @@ export async function createPriceDiscount(
   }
 
   const discountId: string | null = data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
+  console.log("[discounts] discountId from create:", discountId);
   if (!discountId) return null;
 
   // Explicitly set the config metafield on the discount node.
