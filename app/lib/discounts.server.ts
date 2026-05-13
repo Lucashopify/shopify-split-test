@@ -90,13 +90,17 @@ export async function createPriceDiscount(
     return null;
   }
 
-  const discountId: string | null = data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
-  console.log("[discounts] discountId from create:", discountId);
-  if (!discountId) return null;
+  const discountAutomaticNodeId: string | null = data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
+  if (!discountAutomaticNodeId) return null;
 
-  // Explicitly set the config metafield on the discount node.
-  // Passing metafields inside DiscountAutomaticAppInput is not always reliable —
-  // using metafieldsSet guarantees the function can read it via discountNode.metafield.
+  // discountId comes back as gid://shopify/DiscountAutomaticNode/123
+  // but the function reads discountNode.metafield(...) which is on gid://shopify/DiscountNode/123
+  // Extract the numeric ID and construct the correct DiscountNode GID.
+  const numericId = discountAutomaticNodeId.split("/").pop();
+  const discountNodeId = `gid://shopify/DiscountNode/${numericId}`;
+  console.log("[discounts] discountNodeId:", discountNodeId);
+
+  // Set the config metafield on the DiscountNode so the function can read it.
   const metaResp = await admin.graphql(
     `mutation SetDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
@@ -107,7 +111,7 @@ export async function createPriceDiscount(
     {
       variables: {
         metafields: [{
-          ownerId: discountId,
+          ownerId: discountNodeId,
           namespace: "split_test_app",
           key: "discount_config",
           type: "json",
@@ -121,30 +125,10 @@ export async function createPriceDiscount(
   if (metaErrs.length) {
     console.error("[discounts] Metafield set errors:", metaErrs);
   } else {
-    console.log("[discounts] Metafield set OK:", metaData?.metafieldsSet?.metafields);
-    console.log("[discounts] Config stored:", JSON.stringify(config));
+    console.log("[discounts] Metafield set OK on DiscountNode:", metaData?.metafieldsSet?.metafields);
   }
 
-  // Verify the metafield is readable on the discount node (debug)
-  const verifyResp = await admin.graphql(
-    `query VerifyDiscountMetafield($id: ID!) {
-      node(id: $id) {
-        __typename
-        id
-        ... on DiscountNode {
-          metafield(namespace: "split_test_app", key: "discount_config") {
-            value
-          }
-        }
-      }
-    }`,
-    { variables: { id: discountId } },
-  );
-  const { data: verifyData } = await verifyResp.json();
-  console.log("[discounts] Verify node type:", verifyData?.node?.__typename);
-  console.log("[discounts] Verify metafield value:", verifyData?.node?.metafield?.value ? "SET" : "NULL");
-
-  return discountId;
+  return discountAutomaticNodeId;
 }
 
 /**
