@@ -121,6 +121,7 @@ export async function createPriceDiscount(
     console.error("[discounts] Metafield set errors:", metaErrs);
   } else {
     console.log("[discounts] Metafield set OK:", metaData?.metafieldsSet?.metafields);
+    console.log("[discounts] Config stored:", JSON.stringify(config));
   }
 
   return discountId;
