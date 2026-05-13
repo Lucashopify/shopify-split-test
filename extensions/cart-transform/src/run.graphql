@@ -1,0 +1,28 @@
+query RunInput {
+  cart {
+    attribute(key: "_spt_asgn") {
+      value
+    }
+    lines {
+      id
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          id
+          product {
+            id
+          }
+          price {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+  cartTransform {
+    metafield(namespace: "split_test_app", key: "cart_transform_config") {
+      value
+    }
+  }
+}

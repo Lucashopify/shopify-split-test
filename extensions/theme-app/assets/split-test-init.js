@@ -140,17 +140,7 @@
         if (eA.targetProductHandle) {
           html.setAttribute('data-spt-price-product-handle', eA.targetProductHandle);
         }
-        // Activate the discount code for this session so it auto-applies at checkout.
-        // Shopify's /discount/CODE endpoint sets the code on the cart session.
-        var dc = eA.discountCode || ('SPT-' + eA.id.slice(-8).toUpperCase());
-        html.setAttribute('data-spt-discount-code', dc);
-        var _discountApplied = sessionStorage.getItem('_spt_dc_' + dc);
-        if (!_discountApplied) {
-          var _root = marketRoot();
-          fetch(_root + 'discount/' + encodeURIComponent(dc), { credentials: 'include', redirect: 'follow' })
-            .then(function() { sessionStorage.setItem('_spt_dc_' + dc, '1'); })
-            .catch(function() {});
-        }
+        // Cart Transform function handles the real checkout price — no discount code needed.
       }
       if (eA.type === 'TEMPLATE' && av.redirectUrl) {
         var viewName = av.redirectUrl;
@@ -278,24 +268,10 @@
     }
 
     function trackCheckout() {
-      var discountCode = html.getAttribute('data-spt-discount-code');
-
-      function checkoutUrl(base) {
-        var sep = base.indexOf('?') !== -1 ? '&' : '?';
-        return base + sep + 'discount=' + encodeURIComponent(discountCode);
-      }
-
-      // 1. Form submit to /checkout (standard cart page checkout button)
+      // 1. Form submit to /checkout
       d.addEventListener('submit', function(e) {
-        var form = e.target;
-        var action = (form && (form.action || form.getAttribute('action'))) || '';
-        if (action.indexOf('/checkout') !== -1) {
-          sendCheckout();
-          if (discountCode) {
-            e.preventDefault();
-            location.href = checkoutUrl(action);
-          }
-        }
+        var action = (e.target && (e.target.action || e.target.getAttribute('action'))) || '';
+        if (action.indexOf('/checkout') !== -1) sendCheckout();
       }, true);
 
       // 2. Click on checkout links/buttons
@@ -305,15 +281,7 @@
         var el = t.closest
           ? t.closest('[name="checkout"],[href*="/checkout"],[data-checkout-btn],#checkout,.cart__checkout,.cart-checkout')
           : null;
-        if (!el) return;
-        sendCheckout();
-        if (discountCode) {
-          var href = el.getAttribute('href') || '';
-          if (href.indexOf('/checkout') !== -1) {
-            e.preventDefault();
-            location.href = checkoutUrl(href);
-          }
-        }
+        if (el) sendCheckout();
       }, true);
     }
 
@@ -463,18 +431,24 @@
       if (!links.length) return;
 
       // Deduplicate card containers: walk up from each link until we find a
-      // natural card boundary (li, article) or exhaust the DOM.
+      // natural card boundary (li, article) that also contains a price element.
+      // Requiring a price element prevents nav/footer links from matching.
       var seenContainers = new WeakSet();
       for (var li = 0; li < links.length; li++) {
         var cur = links[li].parentElement;
         var container = null;
         while (cur && cur !== d.body) {
           var tag = (cur.tagName || '').toUpperCase();
-          if (tag === 'LI' || tag === 'ARTICLE') { container = cur; break; }
+          if (tag === 'LI' || tag === 'ARTICLE') {
+            // Only treat as product card if it has a price element inside
+            var hasPriceEl = false;
+            for (var pi = 0; pi < priceSels.length; pi++) {
+              if (cur.querySelector(priceSels[pi])) { hasPriceEl = true; break; }
+            }
+            if (hasPriceEl) { container = cur; break; }
+          }
           cur = cur.parentElement;
         }
-        // Fallback: if no li/article found, use the link's direct parent
-        if (!container) container = links[li].parentElement;
         if (container && !seenContainers.has(container)) {
           seenContainers.add(container);
           adjustPricesIn(container);

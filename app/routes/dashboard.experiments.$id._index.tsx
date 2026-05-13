@@ -7,6 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { syncConfigToMetafield } from "../lib/experiments/config.server";
+import { syncCartTransformConfig } from "../lib/discounts.server";
 import type { ExperimentStatus, ExperimentType } from "@prisma/client";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -293,6 +294,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     });
     try {
       await syncConfigToMetafield(admin, shopId);
+      await syncCartTransformConfig(admin, shopId);
     } catch (err) {
       console.error("[action] Failed to sync config metafield:", err);
     }
@@ -307,6 +309,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     });
     try {
       await syncConfigToMetafield(admin, shopId);
+      await syncCartTransformConfig(admin, shopId);
     } catch (err) {
       console.error("[action] Failed to sync config metafield:", err);
     }
