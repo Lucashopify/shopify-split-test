@@ -38,6 +38,7 @@ export type ExperimentConfigEntry = {
   targetTemplate: string | null;
   targetUrl: string | null;
   targetProductId: string | null;
+  targetProductHandle: string | null;
   segment: { id: string; rules: unknown } | null;
   variants: Array<{
     id: string;
@@ -88,6 +89,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
       targetProductId: exp.targetProductId,
+      targetProductHandle: null as string | null,
       discountCode: exp.type === "PRICE" ? priceDiscountCode(exp.id) : null,
       targetSelector: exp.targetSelector,
       segment: exp.segment,
@@ -190,6 +192,33 @@ export async function syncConfigToMetafield(
   shopId: string,
 ): Promise<void> {
   const config = await buildConfig(shopId);
+
+  // Resolve product handles for PRICE experiments so the storefront JS
+  // can match product cards by URL handle (not just numeric GID).
+  const priceExps = config.experiments.filter(
+    (e) => e.type === "PRICE" && e.targetProductId,
+  );
+  if (priceExps.length) {
+    const ids = priceExps.map((e) => e.targetProductId as string);
+    const handleResp = await admin.graphql(
+      `query ProductHandles($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Product { id handle }
+        }
+      }`,
+      { variables: { ids } },
+    );
+    const { data: handleData } = await handleResp.json();
+    const handleMap: Record<string, string> = {};
+    for (const node of handleData?.nodes ?? []) {
+      if (node?.id && node?.handle) handleMap[node.id] = node.handle;
+    }
+    for (const entry of config.experiments) {
+      if (entry.type === "PRICE" && entry.targetProductId) {
+        entry.targetProductHandle = handleMap[entry.targetProductId] ?? null;
+      }
+    }
+  }
 
   // Resolve the actual shop GID — required by metafieldsSet
   const shopResp = await admin.graphql(`{ shop { id } }`);

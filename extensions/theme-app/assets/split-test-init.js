@@ -136,6 +136,10 @@
         if (eA.targetProductId) {
           html.setAttribute('data-spt-price-product-id', String(eA.targetProductId).split('/').pop() || '');
         }
+        // Store product handle for matching product cards via href="/products/handle"
+        if (eA.targetProductHandle) {
+          html.setAttribute('data-spt-price-product-handle', eA.targetProductHandle);
+        }
         // Activate the discount code for this session so it auto-applies at checkout.
         // Shopify's /discount/CODE endpoint sets the code on the cart session.
         var dc = eA.discountCode || ('SPT-' + eA.id.slice(-8).toUpperCase());
@@ -373,6 +377,7 @@
       if (!adjType || isNaN(adjValue)) return;
 
       var targetId = html.getAttribute('data-spt-price-product-id');
+      var targetHandle = html.getAttribute('data-spt-price-product-handle') || '';
       // On a PDP, Shopify.product.id tells us exactly which product this is.
       // On other pages (collection, cart) we fall back to DOM-walking (see per-element check below).
       var pdpProductId = targetId
@@ -382,22 +387,19 @@
       // If we're on a PDP for a DIFFERENT product, skip entirely.
       if (pdpProductId && targetId && pdpProductId !== targetId) return;
 
-      // Helper: try to resolve the product id from a DOM element's ancestors.
-      // Covers product cards ([data-product-id], [data-product], href="/products/...") and cart lines.
-      function resolveProductId(el) {
+      // Helper: try to resolve the product id or handle from a DOM element's ancestors.
+      // Returns { id: string|null, handle: string|null }
+      function resolveProduct(el) {
         var cur = el;
         while (cur && cur !== d.body) {
           var attr = cur.getAttribute('data-product-id') || cur.getAttribute('data-product');
-          if (attr) return String(attr).split('/').pop();
-          if (cur.tagName === 'A') {
-            var href = cur.getAttribute('href') || '';
-            var m = href.match(/\/products\/([^/?#]+)/);
-            if (m) return m[1]; // handle, not numeric id — handled below
-          }
-          // Cart line items often carry data-variant-id; skip those (can't map to product id easily)
+          if (attr) return { id: String(attr).split('/').pop(), handle: null };
+          var href = cur.getAttribute('href') || '';
+          var m = href.match(/\/products\/([^/?#]+)/);
+          if (m) return { id: null, handle: m[1] };
           cur = cur.parentElement;
         }
-        return null;
+        return { id: null, handle: null };
       }
 
       // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
@@ -449,10 +451,10 @@
 
         // If we're NOT on the target product's PDP, verify this element belongs to that product.
         if (targetId && !pdpProductId) {
-          var elProductId = resolveProductId(el);
-          if (elProductId && elProductId !== targetId) return; // belongs to a different product
-          // If we can't resolve at all, skip — safer than modifying wrong prices.
-          if (!elProductId) return;
+          var elProduct = resolveProduct(el);
+          var idMatch = elProduct.id && targetId && elProduct.id === targetId;
+          var handleMatch = elProduct.handle && targetHandle && elProduct.handle === targetHandle;
+          if (!idMatch && !handleMatch) return; // no match — skip (different or unknown product)
         }
 
         var text = el.textContent || '';
