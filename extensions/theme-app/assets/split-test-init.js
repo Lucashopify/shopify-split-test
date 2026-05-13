@@ -373,7 +373,6 @@
 
     function applyPriceAdj() {
       // Skip on cart/checkout — the discount code already applies the real price there.
-      // Running DOM manipulation on top would show a double-discounted price.
       var canonPath = stripMarket(location.pathname);
       if (/^\/(cart|checkout)/.test(canonPath)) return;
 
@@ -383,45 +382,6 @@
 
       var targetId = html.getAttribute('data-spt-price-product-id');
       var targetHandle = html.getAttribute('data-spt-price-product-handle') || '';
-      // On a PDP, Shopify.product.id tells us exactly which product this is.
-      // On other pages (collection, cart) we fall back to DOM-walking (see per-element check below).
-      var pdpProductId = targetId
-        ? ((w.Shopify && w.Shopify.product && String(w.Shopify.product.id)) ||
-           (w.ShopifyAnalytics && w.ShopifyAnalytics.meta && w.ShopifyAnalytics.meta.product && String(w.ShopifyAnalytics.meta.product.id)))
-        : null;
-      // If we're on a PDP for a DIFFERENT product, skip entirely.
-      if (pdpProductId && targetId && pdpProductId !== targetId) return;
-
-      // Helper: resolve the product handle/id for a DOM price element.
-      // Strategy 1: walk ancestors for data-product-id or an <a href="/products/...">
-      // Strategy 2: at each ancestor that looks like a card container (li, article,
-      //   or has "card"/"product" in its class), search WITHIN it for a product link —
-      //   needed for themes (e.g. Dawn) where the link is a sibling of the price.
-      function resolveProduct(el) {
-        var cur = el;
-        while (cur && cur !== d.body) {
-          // Explicit product ID attribute
-          var attr = cur.getAttribute('data-product-id') || cur.getAttribute('data-product');
-          if (attr) return { id: String(attr).split('/').pop(), handle: null };
-          // This element is itself a product link
-          var selfHref = cur.getAttribute('href') || '';
-          var selfM = selfHref.match(/\/products\/([^/?#]+)/);
-          if (selfM) return { id: null, handle: selfM[1] };
-          // If this looks like a card-level container, search within it for a product link
-          var tag = (cur.tagName || '').toUpperCase();
-          var cls = String(cur.className || '');
-          if (tag === 'LI' || tag === 'ARTICLE' || /card|product[-_]item|product[-_]card/i.test(cls)) {
-            var link = cur.querySelector('a[href*="/products/"]');
-            if (link) {
-              var lhref = link.getAttribute('href') || '';
-              var lm = lhref.match(/\/products\/([^/?#]+)/);
-              if (lm) return { id: null, handle: lm[1] };
-            }
-          }
-          cur = cur.parentElement;
-        }
-        return { id: null, handle: null };
-      }
 
       // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
       if (adjType === 'fixed') {
@@ -429,14 +389,9 @@
         if (rate && rate !== 1) return;
       }
 
-      // Universal price regex handles both dot-decimal (€520.95, 1,234.56)
-      // and comma-decimal (€520,95, 1.234,56) in a single pass.
+      // Price regex: handles dot-decimal (€520.95) and comma-decimal (€520,95).
       var priceRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/;
-      // Fallback for integer prices (e.g. €520 with no decimal part)
       var moneyFmtComma = ((w.Shopify && w.Shopify.money_format) || '').indexOf('comma_separator') !== -1;
-
-      // Detect format from the matched string itself: whichever separator comes
-      // last is the decimal separator (e.g. "1.234,56" → comma; "1,234.56" → dot).
       function isCommaDecimalStr(str) {
         var lc = str.lastIndexOf(','), ld = str.lastIndexOf('.');
         if (lc === -1 && ld === -1) return moneyFmtComma;
@@ -452,43 +407,79 @@
         return isComma ? s.replace('.', ',') : s;
       }
 
-      var sels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
+      var priceSels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
 
-      // Collect unique matching elements
-      var seen = new WeakSet();
-      var candidates = [];
-      sels.forEach(function(sel) {
-        d.querySelectorAll(sel).forEach(function(el) {
-          if (!seen.has(el)) { seen.add(el); candidates.push(el); }
+      function adjustPricesIn(scope) {
+        var seen2 = new WeakSet();
+        var els = [];
+        priceSels.forEach(function(sel) {
+          scope.querySelectorAll(sel).forEach(function(e) {
+            if (!seen2.has(e)) { seen2.add(e); els.push(e); }
+          });
         });
-      });
+        els.forEach(function(e) {
+          // Skip wrapper elements that contain other price elements (avoid double-modify)
+          for (var si = 0; si < priceSels.length; si++) {
+            if (e.querySelector(priceSels[si])) return;
+          }
+          var text = e.textContent || '';
+          var match = text.match(priceRe);
+          if (!match) return;
+          var matchStr = match[0];
+          var isComma = isCommaDecimalStr(matchStr);
+          var raw = parsePrice(matchStr);
+          if (isNaN(raw) || raw <= 0) return;
+          var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
+          if (adj < 0) adj = 0;
+          e.textContent = text.replace(matchStr, fmtPrice(adj, isComma));
+        });
+      }
 
-      // Only process leaf-level elements (skip any element that contains another matched
-      // price element as a descendant) to prevent the same price being modified twice.
-      candidates.forEach(function(el) {
-        for (var si = 0; si < sels.length; si++) {
-          if (el.querySelector(sels[si])) return;
+      // ── PDP: Shopify.product tells us which product this page is for ──────
+      var pdpId = w.Shopify && w.Shopify.product && String(w.Shopify.product.id);
+      var pdpHandle = w.Shopify && w.Shopify.product && w.Shopify.product.handle;
+      var onTargetPdp = (pdpId && pdpId === targetId) ||
+                        (pdpHandle && pdpHandle === targetHandle);
+      var onWrongPdp  = (pdpId || pdpHandle) && !onTargetPdp;
+
+      if (onWrongPdp) return; // PDP for a different product — nothing to do
+
+      if (onTargetPdp) {
+        // We're on the right PDP — adjust all price elements on the page
+        adjustPricesIn(d);
+        return;
+      }
+
+      // ── Non-PDP (collection, search, recommendations, homepage) ──────────
+      // Strategy: find all links to the target product, walk up to their card
+      // container, then update prices within that container.
+      // This works for ANY theme because every product card has an <a href="/products/handle">.
+      if (!targetHandle) return; // need handle to match links
+
+      // Build a selector that matches links to this specific product
+      var encodedHandle = targetHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var linkSel = 'a[href*="/products/' + encodedHandle + '"]';
+      var links = d.querySelectorAll(linkSel);
+      if (!links.length) return;
+
+      // Deduplicate card containers: walk up from each link until we find a
+      // natural card boundary (li, article) or exhaust the DOM.
+      var seenContainers = new WeakSet();
+      for (var li = 0; li < links.length; li++) {
+        var cur = links[li].parentElement;
+        var container = null;
+        while (cur && cur !== d.body) {
+          var tag = (cur.tagName || '').toUpperCase();
+          if (tag === 'LI' || tag === 'ARTICLE') { container = cur; break; }
+          cur = cur.parentElement;
         }
-
-        // If we're NOT on the target product's PDP, verify this element belongs to that product.
-        if (targetId && !pdpProductId) {
-          var elProduct = resolveProduct(el);
-          var idMatch = elProduct.id && targetId && elProduct.id === targetId;
-          var handleMatch = elProduct.handle && targetHandle && elProduct.handle === targetHandle;
-          if (!idMatch && !handleMatch) return; // no match — skip (different or unknown product)
+        // Fallback: if no li/article found, use the link's direct parent
+        if (!container) container = links[li].parentElement;
+        if (container && !seenContainers.has(container)) {
+          seenContainers.add(container);
+          adjustPricesIn(container);
         }
-
-        var text = el.textContent || '';
-        var match = text.match(priceRe);
-        if (!match) return;
-        var matchStr = match[0];
-        var isComma = isCommaDecimalStr(matchStr);
-        var raw = parsePrice(matchStr);
-        if (isNaN(raw) || raw <= 0) return;
-        var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
-        if (adj < 0) adj = 0;
-        el.textContent = text.replace(matchStr, fmtPrice(adj, isComma));
-      });
+      }
     }
 
     function applyContentVariants() {
