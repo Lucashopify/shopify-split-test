@@ -33,11 +33,14 @@ async function getFunctionId(admin: AdminClient): Promise<string | null> {
       }
     }
   `);
-  const { data } = await resp.json();
-  const fn = (data?.shopifyFunctions?.nodes ?? []).find(
+  const json = await resp.json();
+  const nodes = json?.data?.shopifyFunctions?.nodes ?? [];
+  console.log("[getFunctionId] all functions:", JSON.stringify(nodes));
+  const fn = nodes.find(
     (f: { handle: string; apiType: string }) =>
       f.handle === "split-test-price-discount" && f.apiType.toLowerCase() === "product_discounts",
   );
+  console.log("[getFunctionId] matched:", fn ?? "NONE");
   return fn?.id ?? null;
 }
 
