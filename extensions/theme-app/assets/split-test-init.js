@@ -392,16 +392,32 @@
       // If we're on a PDP for a DIFFERENT product, skip entirely.
       if (pdpProductId && targetId && pdpProductId !== targetId) return;
 
-      // Helper: try to resolve the product id or handle from a DOM element's ancestors.
-      // Returns { id: string|null, handle: string|null }
+      // Helper: resolve the product handle/id for a DOM price element.
+      // Strategy 1: walk ancestors for data-product-id or an <a href="/products/...">
+      // Strategy 2: at each ancestor that looks like a card container (li, article,
+      //   or has "card"/"product" in its class), search WITHIN it for a product link —
+      //   needed for themes (e.g. Dawn) where the link is a sibling of the price.
       function resolveProduct(el) {
         var cur = el;
         while (cur && cur !== d.body) {
+          // Explicit product ID attribute
           var attr = cur.getAttribute('data-product-id') || cur.getAttribute('data-product');
           if (attr) return { id: String(attr).split('/').pop(), handle: null };
-          var href = cur.getAttribute('href') || '';
-          var m = href.match(/\/products\/([^/?#]+)/);
-          if (m) return { id: null, handle: m[1] };
+          // This element is itself a product link
+          var selfHref = cur.getAttribute('href') || '';
+          var selfM = selfHref.match(/\/products\/([^/?#]+)/);
+          if (selfM) return { id: null, handle: selfM[1] };
+          // If this looks like a card-level container, search within it for a product link
+          var tag = (cur.tagName || '').toUpperCase();
+          var cls = String(cur.className || '');
+          if (tag === 'LI' || tag === 'ARTICLE' || /card|product[-_]item|product[-_]card/i.test(cls)) {
+            var link = cur.querySelector('a[href*="/products/"]');
+            if (link) {
+              var lhref = link.getAttribute('href') || '';
+              var lm = lhref.match(/\/products\/([^/?#]+)/);
+              if (lm) return { id: null, handle: lm[1] };
+            }
+          }
           cur = cur.parentElement;
         }
         return { id: null, handle: null };
