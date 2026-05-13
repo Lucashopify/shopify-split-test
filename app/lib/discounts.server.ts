@@ -125,6 +125,25 @@ export async function createPriceDiscount(
     console.log("[discounts] Config stored:", JSON.stringify(config));
   }
 
+  // Verify the metafield is readable on the discount node (debug)
+  const verifyResp = await admin.graphql(
+    `query VerifyDiscountMetafield($id: ID!) {
+      node(id: $id) {
+        __typename
+        id
+        ... on DiscountNode {
+          metafield(namespace: "split_test_app", key: "discount_config") {
+            value
+          }
+        }
+      }
+    }`,
+    { variables: { id: discountId } },
+  );
+  const { data: verifyData } = await verifyResp.json();
+  console.log("[discounts] Verify node type:", verifyData?.node?.__typename);
+  console.log("[discounts] Verify metafield value:", verifyData?.node?.metafield?.value ? "SET" : "NULL");
+
   return discountId;
 }
 
