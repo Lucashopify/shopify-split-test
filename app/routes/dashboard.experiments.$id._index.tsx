@@ -10,7 +10,7 @@ import { syncConfigToMetafield } from "../lib/experiments/config.server";
 import type { ExperimentStatus, ExperimentType } from "@prisma/client";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session, setCookie, shopId, billingPlanName } = await requireDashboardSession(request);
+  const { session, setCookie, shopId, billingPlanName, admin } = await requireDashboardSession(request);
 
   const experiment = await prisma.experiment.findFirst({
     where: { id: params.id, shopId },
@@ -199,8 +199,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     visitorType: mergeDim(vtEvents, vtOrders),
   };
 
+  // Fetch product details for PRICE experiments
+  let targetProduct: { title: string; imageUrl: string | null } | null = null;
+  if (experiment.type === "PRICE" && experiment.targetProductId) {
+    try {
+      const resp = await admin.graphql(`
+        query GetProduct($id: ID!) {
+          product(id: $id) {
+            title
+            featuredImage { url }
+          }
+        }
+      `, { variables: { id: experiment.targetProductId } });
+      const { data: pData } = await resp.json() as { data?: { product?: { title: string; featuredImage?: { url: string } } } };
+      if (pData?.product) {
+        targetProduct = { title: pData.product.title, imageUrl: pData.product.featuredImage?.url ?? null };
+      }
+    } catch {}
+  }
+
   const planLimits = await getPlanLimits(shopId, billingPlanName);
-  return data({ experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled }, { headers: { "Set-Cookie": setCookie } });
+  return data({ experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled: planLimits.segmentsEnabled, targetProduct }, { headers: { "Set-Cookie": setCookie } });
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -333,7 +352,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TABS = ["Overview", "Variants", "Results", "History"];
 
 export default function ExperimentDetail() {
-  const { experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled } = useLoaderData<typeof loader>();
+  const { experiment, segments, resultRows, liveOrders, funnel, variantStats, breakdown, auditLogs, segmentsEnabled, targetProduct } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const segmentFetcher = useFetcher();
@@ -581,6 +600,17 @@ export default function ExperimentDetail() {
       {tab === 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
           <DetailRow label="Type" value={type.replace(/_/g, " ")} />
+          {targetProduct && (
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "0.75rem 0", borderBottom: "1px solid #f5f5f5" }}>
+              <span style={{ width: 180, fontSize: "0.8125rem", color: "#999", flexShrink: 0 }}>Product</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                {targetProduct.imageUrl && (
+                  <img src={targetProduct.imageUrl} alt={targetProduct.title} style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", border: "1px solid #f0f0f0", flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500 }}>{targetProduct.title}</span>
+              </div>
+            </div>
+          )}
           {experiment.hypothesis && <DetailRow label="Hypothesis" value={experiment.hypothesis} />}
           <DetailRow label="Traffic allocation" value={`${experiment.trafficAllocation}%`} />
           <DetailRow label="Target template" value={experiment.targetTemplate ?? "All pages"} />
