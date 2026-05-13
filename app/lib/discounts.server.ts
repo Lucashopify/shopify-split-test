@@ -34,10 +34,12 @@ export async function ensureCartTransform(admin: AdminClient): Promise<string | 
   const fn = (fnData?.shopifyFunctions?.nodes ?? []).find(
     (n: { apiType: string }) => n.apiType === "cart_transform",
   );
+  console.log("[cartTransform] shopifyFunctions nodes:", JSON.stringify(fnData?.shopifyFunctions?.nodes));
   if (!fn) {
     console.warn("[cartTransform] cart_transform function not found — deploy the extension first");
     return null;
   }
+  console.log("[cartTransform] Found function:", fn.id);
 
   // Check if already registered
   const listResp = await admin.graphql(`{
