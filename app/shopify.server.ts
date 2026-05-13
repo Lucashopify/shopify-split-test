@@ -9,7 +9,7 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import { prisma } from "./db.server";
 import { syncConfigToMetafield, ensureMetafieldDefinition } from "./lib/experiments/config.server";
-import { syncCartTransformConfig, ensureCartTransform } from "./lib/discounts.server";
+import { ensureCartTransform } from "./lib/discounts.server";
 import { getShopMetadata } from "./lib/shopify/admin.server";
 
 const APP_URL = process.env.SHOPIFY_APP_URL!;
@@ -85,12 +85,6 @@ const shopify = shopifyApp({
         await ensureCartTransform(admin);
       } catch (err) {
         console.error("[afterAuth] Failed to ensure cart transform:", err);
-      }
-
-      try {
-        await syncCartTransformConfig(admin, shop.id);
-      } catch (err) {
-        console.error("[afterAuth] Failed to sync cart transform config:", err);
       }
     },
   },

@@ -27,7 +27,7 @@
  * }
  */
 import { prisma } from "../../db.server";
-import { priceDiscountCode } from "../discounts.server";
+import { priceDiscountCode, syncCartTransformConfig } from "../discounts.server";
 
 export type ExperimentConfigEntry = {
   id: string;
@@ -272,6 +272,11 @@ export async function syncConfigToMetafield(
       .join(", ");
     throw new Error(`Metafield sync failed: ${errs}`);
   }
+
+  // Always keep Cart Transform config in sync with the metafield config
+  await syncCartTransformConfig(admin, shopId).catch((err) =>
+    console.error("[syncConfigToMetafield] Cart transform sync failed:", err),
+  );
 }
 
 /**
