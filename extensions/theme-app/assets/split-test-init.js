@@ -372,6 +372,11 @@
     }
 
     function applyPriceAdj() {
+      // Skip on cart/checkout — the discount code already applies the real price there.
+      // Running DOM manipulation on top would show a double-discounted price.
+      var canonPath = stripMarket(location.pathname);
+      if (/^\/(cart|checkout)/.test(canonPath)) return;
+
       var adjType = html.getAttribute('data-spt-price-adj-type');
       var adjValue = parseFloat(html.getAttribute('data-spt-price-adj-value') || '');
       if (!adjType || isNaN(adjValue)) return;

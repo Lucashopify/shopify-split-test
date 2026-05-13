@@ -89,7 +89,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
       targetProductId: exp.targetProductId,
-      targetProductHandle: null as string | null,
+      targetProductHandle: exp.targetProductHandle ?? null,
       discountCode: exp.type === "PRICE" ? priceDiscountCode(exp.id) : null,
       targetSelector: exp.targetSelector,
       segment: exp.segment,
@@ -215,7 +215,15 @@ export async function syncConfigToMetafield(
     }
     for (const entry of config.experiments) {
       if (entry.type === "PRICE" && entry.targetProductId) {
-        entry.targetProductHandle = handleMap[entry.targetProductId] ?? null;
+        const handle = handleMap[entry.targetProductId] ?? null;
+        entry.targetProductHandle = handle;
+        // Persist handle to DB so buildConfig (API fallback) can return it
+        if (handle) {
+          await prisma.experiment.update({
+            where: { id: entry.id },
+            data: { targetProductHandle: handle },
+          });
+        }
       }
     }
   }
