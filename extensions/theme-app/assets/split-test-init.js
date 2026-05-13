@@ -132,6 +132,10 @@
       if (eA.type === 'PRICE' && av.priceAdjValue != null) {
         html.setAttribute('data-spt-price-adj-type', av.priceAdjType || 'percent');
         html.setAttribute('data-spt-price-adj-value', String(av.priceAdjValue));
+        // Store numeric product ID extracted from GID (e.g. "gid://shopify/Product/123" → "123")
+        if (eA.targetProductId) {
+          html.setAttribute('data-spt-price-product-id', String(eA.targetProductId).split('/').pop() || '');
+        }
       }
       if (eA.type === 'TEMPLATE' && av.redirectUrl) {
         var viewName = av.redirectUrl;
@@ -334,6 +338,23 @@
       var adjType = html.getAttribute('data-spt-price-adj-type');
       var adjValue = parseFloat(html.getAttribute('data-spt-price-adj-value') || '');
       if (!adjType || isNaN(adjValue)) return;
+
+      // Only apply on the exact target product's page.
+      // The Shopify Function discount applies correctly at checkout regardless of DOM state,
+      // so it's safer to skip DOM manipulation on any page we can't confirm is the right product.
+      var targetId = html.getAttribute('data-spt-price-product-id');
+      if (targetId) {
+        // Try Shopify.product (set synchronously by most themes via {{ product | json }})
+        var currentId = w.Shopify && w.Shopify.product && String(w.Shopify.product.id);
+        // Fallback: ShopifyAnalytics.meta.product (set by Shopify's analytics layer)
+        if (!currentId && w.ShopifyAnalytics && w.ShopifyAnalytics.meta && w.ShopifyAnalytics.meta.product) {
+          currentId = String(w.ShopifyAnalytics.meta.product.id);
+        }
+        // If we can't confirm which product this page is for, or it's not the target — skip.
+        // Prevents all prices on collection / home / other product pages being modified.
+        if (!currentId || currentId !== targetId) return;
+      }
+
       // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
       // Percentage adjustments are currency-neutral so always apply.
       // The actual checkout discount (Shopify Function) is always correct regardless.
@@ -342,6 +363,7 @@
         var rate = shopCurrency && parseFloat(shopCurrency.rate);
         if (rate && rate !== 1) return;
       }
+
       var sels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
       var seen = new WeakSet();
       sels.forEach(function (sel) {
