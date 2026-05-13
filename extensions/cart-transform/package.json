@@ -1,0 +1,25 @@
+{
+  "name": "cart-transform",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@shopify/shopify_function": "~2.0.0"
+  },
+  "codegen": {
+    "overwrite": true,
+    "generates": {
+      "src/generated/api.ts": {
+        "schema": "schema.graphql",
+        "documents": ["src/run.graphql"],
+        "plugins": ["typescript", "typescript-operations"],
+        "config": {
+          "avoidOptionals": true,
+          "maybeValue": "T",
+          "enumsAsTypes": true
+        }
+      }
+    }
+  }
+}
