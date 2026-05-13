@@ -355,22 +355,27 @@
         if (rate && rate !== 1) return;
       }
 
-      // Detect European comma-decimal format (e.g. €520,95 vs US €520.95).
-      // Shopify exposes this via Shopify.money_format, e.g. "€{{amount_with_comma_separator}}".
-      var commaDecimal = ((w.Shopify && w.Shopify.money_format) || '').indexOf('comma_separator') !== -1;
-      // Regex matches the price number respecting the store's decimal format
-      var priceRe = commaDecimal
-        ? /\d+(?:\.\d{3})*(?:,\d{1,2})?/   // EU: 1.234,56 or 520,95
-        : /\d+(?:,\d{3})*(?:\.\d{1,2})?/;  // US: 1,234.56 or 520.95
+      // Universal price regex handles both dot-decimal (€520.95, 1,234.56)
+      // and comma-decimal (€520,95, 1.234,56) in a single pass.
+      var priceRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/;
+      // Fallback for integer prices (e.g. €520 with no decimal part)
+      var moneyFmtComma = ((w.Shopify && w.Shopify.money_format) || '').indexOf('comma_separator') !== -1;
 
+      // Detect format from the matched string itself: whichever separator comes
+      // last is the decimal separator (e.g. "1.234,56" → comma; "1,234.56" → dot).
+      function isCommaDecimalStr(str) {
+        var lc = str.lastIndexOf(','), ld = str.lastIndexOf('.');
+        if (lc === -1 && ld === -1) return moneyFmtComma;
+        return lc > ld;
+      }
       function parsePrice(str) {
-        return commaDecimal
+        return isCommaDecimalStr(str)
           ? parseFloat(str.replace(/\./g, '').replace(',', '.'))
           : parseFloat(str.replace(/,/g, ''));
       }
-      function fmtPrice(n) {
+      function fmtPrice(n, isComma) {
         var s = n.toFixed(2);
-        return commaDecimal ? s.replace('.', ',') : s;
+        return isComma ? s.replace('.', ',') : s;
       }
 
       var sels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
@@ -393,11 +398,13 @@
         var text = el.textContent || '';
         var match = text.match(priceRe);
         if (!match) return;
-        var raw = parsePrice(match[0]);
+        var matchStr = match[0];
+        var isComma = isCommaDecimalStr(matchStr);
+        var raw = parsePrice(matchStr);
         if (isNaN(raw) || raw <= 0) return;
         var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
         if (adj < 0) adj = 0;
-        el.textContent = text.replace(match[0], fmtPrice(adj));
+        el.textContent = text.replace(matchStr, fmtPrice(adj, isComma));
       });
     }
 
