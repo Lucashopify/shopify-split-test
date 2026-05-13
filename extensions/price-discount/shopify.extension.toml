@@ -11,3 +11,7 @@ api_version = "2025-07"
 command = "sh build.sh"
 path = "dist/function.wasm"
 watch = ["src/**/*.{js,graphql}"]
+
+[[extensions.metafields]]
+namespace = "split_test_app"
+key = "discount_config"
