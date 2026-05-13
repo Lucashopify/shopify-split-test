@@ -36,7 +36,7 @@ async function getFunctionId(admin: AdminClient): Promise<string | null> {
   const { data } = await resp.json();
   const fn = (data?.shopifyFunctions?.nodes ?? []).find(
     (f: { handle: string; apiType: string }) =>
-      f.handle === "split-test-price-discount" && f.apiType === "product_discounts",
+      f.handle === "split-test-price-discount" && f.apiType.toLowerCase() === "product_discounts",
   );
   return fn?.id ?? null;
 }
