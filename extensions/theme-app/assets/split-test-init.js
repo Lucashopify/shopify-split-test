@@ -136,6 +136,9 @@
         if (eA.targetProductId) {
           html.setAttribute('data-spt-price-product-id', String(eA.targetProductId).split('/').pop() || '');
         }
+        // Store the discount code so checkout interception can apply it
+        var dc = eA.discountCode || ('SPT-' + eA.id.slice(-8).toUpperCase());
+        html.setAttribute('data-spt-discount-code', dc);
       }
       if (eA.type === 'TEMPLATE' && av.redirectUrl) {
         var viewName = av.redirectUrl;
@@ -263,20 +266,42 @@
     }
 
     function trackCheckout() {
-      // 1. Form submit to /checkout (cart page checkout button)
+      var discountCode = html.getAttribute('data-spt-discount-code');
+
+      function checkoutUrl(base) {
+        var sep = base.indexOf('?') !== -1 ? '&' : '?';
+        return base + sep + 'discount=' + encodeURIComponent(discountCode);
+      }
+
+      // 1. Form submit to /checkout (standard cart page checkout button)
       d.addEventListener('submit', function(e) {
-        var action = (e.target && (e.target.action || e.target.getAttribute('action'))) || '';
-        if (action.indexOf('/checkout') !== -1) sendCheckout();
+        var form = e.target;
+        var action = (form && (form.action || form.getAttribute('action'))) || '';
+        if (action.indexOf('/checkout') !== -1) {
+          sendCheckout();
+          if (discountCode) {
+            e.preventDefault();
+            location.href = checkoutUrl(action);
+          }
+        }
       }, true);
 
-      // 2. Click on common checkout button selectors
+      // 2. Click on checkout links/buttons
       d.addEventListener('click', function(e) {
         var t = e.target;
         if (!t) return;
         var el = t.closest
           ? t.closest('[name="checkout"],[href*="/checkout"],[data-checkout-btn],#checkout,.cart__checkout,.cart-checkout')
           : null;
-        if (el) sendCheckout();
+        if (!el) return;
+        sendCheckout();
+        if (discountCode) {
+          var href = el.getAttribute('href') || '';
+          if (href.indexOf('/checkout') !== -1) {
+            e.preventDefault();
+            location.href = checkoutUrl(href);
+          }
+        }
       }, true);
     }
 

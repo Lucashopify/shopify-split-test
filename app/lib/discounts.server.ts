@@ -19,142 +19,107 @@ export type PriceDiscountConfig = {
 };
 
 /**
- * Look up the deployed Shopify Function ID for our price discount extension.
+ * Derive a deterministic discount code from the experiment ID.
+ * e.g. "cmp49pgvj0005p61yi3khkxsx" → "SPT-I3KHKXSX"
  */
-async function getFunctionId(admin: AdminClient): Promise<string | null> {
-  // Allow hardcoding via env var to bypass dynamic lookup if shopifyFunctions returns empty
-  if (process.env.PRICE_DISCOUNT_FUNCTION_ID) {
-    console.log("[getFunctionId] using env var:", process.env.PRICE_DISCOUNT_FUNCTION_ID);
-    return process.env.PRICE_DISCOUNT_FUNCTION_ID;
-  }
-
-  const resp = await admin.graphql(`
-    query GetShopifyFunctions {
-      shopifyFunctions(first: 25) {
-        nodes {
-          id
-          apiType
-        }
-      }
-    }
-  `);
-  const json = await resp.json();
-  console.log("[getFunctionId] full response:", JSON.stringify(json));
-  const nodes = json?.data?.shopifyFunctions?.nodes ?? [];
-  const fn = nodes.find(
-    (f: { apiType: string }) => f.apiType.toLowerCase() === "product_discounts",
-  );
-  console.log("[getFunctionId] matched:", fn ?? "NONE");
-  return fn?.id ?? null;
+export function priceDiscountCode(experimentId: string): string {
+  return `SPT-${experimentId.slice(-8).toUpperCase()}`;
 }
 
 /**
- * Create an automatic app discount for a PRICE experiment.
- * Returns the Shopify discount GID, or null on failure.
+ * Create a discount CODE for a PRICE experiment.
+ * Returns the DiscountCodeNode GID (used for deletion), or null on failure.
+ * The code is derived from the experiment ID so the storefront JS can compute
+ * it and append ?discount=CODE to the checkout URL for test-group visitors.
  */
 export async function createPriceDiscount(
   admin: AdminClient,
   config: PriceDiscountConfig,
   experimentName: string,
 ): Promise<string | null> {
-  const functionId = await getFunctionId(admin);
-  if (!functionId) {
-    console.error("[discounts] split-test-price-discount function not found — deploy app first");
+  const testVariant = config.variants.find((v) => !v.isControl);
+  if (!testVariant?.priceAdjType || testVariant.priceAdjValue == null) {
+    console.error("[discounts] No test variant with price adjustment");
     return null;
   }
 
+  const code = priceDiscountCode(config.experimentId);
+
+  const discountValue =
+    testVariant.priceAdjType === "percent"
+      ? { percentage: testVariant.priceAdjValue / 100 }
+      : { discountAmount: { amount: String(testVariant.priceAdjValue), appliesOnEachItem: true } };
+
   const resp = await admin.graphql(
-    `mutation CreatePriceDiscount($discount: DiscountAutomaticAppInput!) {
-      discountAutomaticAppCreate(automaticAppDiscount: $discount) {
-        automaticAppDiscount {
-          discountId
-        }
+    `mutation CreateDiscountCode($input: DiscountCodeBasicInput!) {
+      discountCodeBasicCreate(basicCodeDiscount: $input) {
+        codeDiscountNode { id }
         userErrors { field message }
       }
     }`,
     {
       variables: {
-        discount: {
+        input: {
           title: experimentName,
-          functionId,
+          code,
           startsAt: new Date().toISOString(),
+          customerSelection: { all: true },
+          customerGets: {
+            value: discountValue,
+            items: { products: { productsToAdd: [config.targetProductId] } },
+          },
+          appliesOncePerCustomer: false,
         },
       },
     },
   );
 
   const { data } = await resp.json();
-  const errs = data?.discountAutomaticAppCreate?.userErrors ?? [];
+  const errs = data?.discountCodeBasicCreate?.userErrors ?? [];
   if (errs.length) {
-    console.error("[discounts] Create errors:", errs);
+    console.error("[discounts] Create code errors:", errs);
     return null;
   }
 
-  const discountAutomaticNodeId: string | null = data?.discountAutomaticAppCreate?.automaticAppDiscount?.discountId ?? null;
-  if (!discountAutomaticNodeId) return null;
-
-  // discountId comes back as gid://shopify/DiscountAutomaticNode/123
-  // but the function reads discountNode.metafield(...) which is on gid://shopify/DiscountNode/123
-  // Extract the numeric ID and construct the correct DiscountNode GID.
-  const numericId = discountAutomaticNodeId.split("/").pop();
-  const discountNodeId = `gid://shopify/DiscountNode/${numericId}`;
-  console.log("[discounts] discountNodeId:", discountNodeId);
-
-  // Set the config metafield on the DiscountNode so the function can read it.
-  const metaResp = await admin.graphql(
-    `mutation SetDiscountMetafield($metafields: [MetafieldsSetInput!]!) {
-      metafieldsSet(metafields: $metafields) {
-        metafields { id namespace key }
-        userErrors { field message }
-      }
-    }`,
-    {
-      variables: {
-        metafields: [{
-          ownerId: discountNodeId,
-          namespace: "split_test_app",
-          key: "discount_config",
-          type: "json",
-          value: JSON.stringify(config),
-        }],
-      },
-    },
-  );
-  const { data: metaData } = await metaResp.json();
-  const metaErrs = metaData?.metafieldsSet?.userErrors ?? [];
-  if (metaErrs.length) {
-    console.error("[discounts] Metafield set errors:", metaErrs);
-  } else {
-    console.log("[discounts] Metafield set OK on DiscountNode:", metaData?.metafieldsSet?.metafields);
-  }
-
-  return discountAutomaticNodeId;
+  const nodeId: string | null = data?.discountCodeBasicCreate?.codeDiscountNode?.id ?? null;
+  console.log("[discounts] Discount code created:", code, "nodeId:", nodeId);
+  return nodeId;
 }
 
 /**
- * Delete an automatic app discount and clear the stored ID from the experiment.
+ * Delete a price discount and clear the stored ID from the experiment.
+ * Handles both legacy automatic discounts and the new code discounts.
  */
 export async function deletePriceDiscount(
   admin: AdminClient,
   discountId: string,
   experimentId: string,
 ): Promise<void> {
-  const resp = await admin.graphql(
-    `mutation DeleteDiscount($id: ID!) {
-      discountAutomaticDelete(id: $id) {
-        deletedAutomaticDiscountId
-        userErrors { field message }
-      }
-    }`,
-    { variables: { id: discountId } },
-  );
+  const isCodeDiscount = discountId.includes("DiscountCodeNode");
+
+  const mutation = isCodeDiscount
+    ? `mutation DeleteDiscountCode($id: ID!) {
+        discountCodeDelete(id: $id) {
+          deletedCodeDiscountId
+          userErrors { field message }
+        }
+      }`
+    : `mutation DeleteDiscount($id: ID!) {
+        discountAutomaticDelete(id: $id) {
+          deletedAutomaticDiscountId
+          userErrors { field message }
+        }
+      }`;
+
+  const resp = await admin.graphql(mutation, { variables: { id: discountId } });
   const { data } = await resp.json();
-  const errs = data?.discountAutomaticDelete?.userErrors ?? [];
+  const errs = isCodeDiscount
+    ? (data?.discountCodeDelete?.userErrors ?? [])
+    : (data?.discountAutomaticDelete?.userErrors ?? []);
   if (errs.length) {
     console.error("[discounts] Delete errors:", errs);
   }
 
-  // Always clear the stored ID, even on partial failure
   await prisma.experiment.update({
     where: { id: experimentId },
     data: { shopifyDiscountId: null },

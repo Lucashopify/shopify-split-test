@@ -27,6 +27,7 @@
  * }
  */
 import { prisma } from "../../db.server";
+import { priceDiscountCode } from "../discounts.server";
 
 export type ExperimentConfigEntry = {
   id: string;
@@ -87,6 +88,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
       targetProductId: exp.targetProductId,
+      discountCode: exp.type === "PRICE" ? priceDiscountCode(exp.id) : null,
       targetSelector: exp.targetSelector,
       segment: exp.segment,
       variants: exp.variants.map((v) => ({
