@@ -136,9 +136,17 @@
         if (eA.targetProductId) {
           html.setAttribute('data-spt-price-product-id', String(eA.targetProductId).split('/').pop() || '');
         }
-        // Store the discount code so checkout interception can apply it
+        // Activate the discount code for this session so it auto-applies at checkout.
+        // Shopify's /discount/CODE endpoint sets the code on the cart session.
         var dc = eA.discountCode || ('SPT-' + eA.id.slice(-8).toUpperCase());
         html.setAttribute('data-spt-discount-code', dc);
+        var _discountApplied = sessionStorage.getItem('_spt_dc_' + dc);
+        if (!_discountApplied) {
+          var _root = marketRoot();
+          fetch(_root + 'discount/' + encodeURIComponent(dc), { credentials: 'include', redirect: 'follow' })
+            .then(function() { sessionStorage.setItem('_spt_dc_' + dc, '1'); })
+            .catch(function() {});
+        }
       }
       if (eA.type === 'TEMPLATE' && av.redirectUrl) {
         var viewName = av.redirectUrl;
