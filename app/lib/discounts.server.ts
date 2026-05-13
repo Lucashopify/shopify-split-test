@@ -33,7 +33,6 @@ async function getFunctionId(admin: AdminClient): Promise<string | null> {
       shopifyFunctions(first: 25) {
         nodes {
           id
-          handle
           apiType
         }
       }
@@ -43,8 +42,7 @@ async function getFunctionId(admin: AdminClient): Promise<string | null> {
   console.log("[getFunctionId] full response:", JSON.stringify(json));
   const nodes = json?.data?.shopifyFunctions?.nodes ?? [];
   const fn = nodes.find(
-    (f: { handle: string; apiType: string }) =>
-      f.handle === "split-test-price-discount" && f.apiType.toLowerCase() === "product_discounts",
+    (f: { apiType: string }) => f.apiType.toLowerCase() === "product_discounts",
   );
   console.log("[getFunctionId] matched:", fn ?? "NONE");
   return fn?.id ?? null;
