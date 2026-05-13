@@ -403,17 +403,28 @@
         });
       }
 
-      // ── PDP: Shopify.product tells us which product this page is for ──────
-      var pdpId = w.Shopify && w.Shopify.product && String(w.Shopify.product.id);
-      var pdpHandle = w.Shopify && w.Shopify.product && w.Shopify.product.handle;
-      var onTargetPdp = (pdpId && pdpId === targetId) ||
-                        (pdpHandle && pdpHandle === targetHandle);
-      var onWrongPdp  = (pdpId || pdpHandle) && !onTargetPdp;
+      // ── PDP detection ─────────────────────────────────────────────────────
+      // Three signals, any one is enough:
+      // 1. URL path matches /products/<targetHandle>
+      // 2. window.Shopify.product.handle matches
+      // 3. window.Shopify.product.id (numeric) matches targetId
+      var canonPath = stripMarket(location.pathname);
+      var urlHandle = /^\/products\/([^/?#]+)/.exec(canonPath);
+      urlHandle = urlHandle ? urlHandle[1] : null;
 
-      if (onWrongPdp) return; // PDP for a different product — nothing to do
+      var spProduct = w.Shopify && w.Shopify.product;
+      var spHandle  = spProduct && spProduct.handle;
+      var spId      = spProduct && String(spProduct.id || '');
+
+      var onProductPage = !!urlHandle; // any /products/* URL
+      var onTargetPdp   = (urlHandle  && targetHandle && urlHandle  === targetHandle) ||
+                          (spHandle   && targetHandle && spHandle   === targetHandle) ||
+                          (spId       && targetId     && spId       === targetId);
+      var onWrongPdp    = onProductPage && !onTargetPdp;
+
+      if (onWrongPdp) return;
 
       if (onTargetPdp) {
-        // We're on the right PDP — adjust all price elements on the page
         adjustPricesIn(d);
         return;
       }
