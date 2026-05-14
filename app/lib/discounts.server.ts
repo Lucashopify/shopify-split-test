@@ -43,17 +43,16 @@ export async function ensureCartTransform(admin: AdminClient): Promise<string | 
     return existing.id as string;
   }
 
-  // cartTransformCreate expects a full GID, not a bare UUID
-  const functionGid = fn.id.startsWith('gid://') ? fn.id : `gid://shopify/ShopifyFunction/${fn.id}`;
-  console.log("[cartTransform] creating with functionId:", functionGid);
+  const functionHandle = "split-test-cart-transform";
+  console.log("[cartTransform] creating with functionHandle:", functionHandle);
   const createResp = await admin.graphql(
-    `mutation CartTransformCreate($functionId: String!) {
-      cartTransformCreate(functionId: $functionId) {
+    `mutation CartTransformCreate($functionHandle: String!) {
+      cartTransformCreate(functionHandle: $functionHandle) {
         cartTransform { id }
         userErrors { field message code }
       }
     }`,
-    { variables: { functionId: functionGid } },
+    { variables: { functionHandle } },
   );
   const createJson = await createResp.json();
   console.log("[cartTransform] create response:", JSON.stringify(createJson));

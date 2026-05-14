@@ -33,17 +33,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } else if ((result.cartTransforms as unknown[])?.length > 0) {
     result.createAttempt = "skipped — transform already exists";
   } else {
-    const functionGid = fn.id.startsWith("gid://") ? fn.id : `gid://shopify/ShopifyFunction/${fn.id}`;
-    result.functionGid = functionGid;
+    const functionHandle = "split-test-cart-transform";
+    result.functionHandle = functionHandle;
     try {
       const createResp = await admin.graphql(
-        `mutation CartTransformCreate($functionId: String!) {
-          cartTransformCreate(functionId: $functionId) {
+        `mutation CartTransformCreate($functionHandle: String!) {
+          cartTransformCreate(functionHandle: $functionHandle) {
             cartTransform { id functionId }
             userErrors { field message code }
           }
         }`,
-        { variables: { functionId: functionGid } },
+        { variables: { functionHandle } },
       );
       const status = createResp.status;
       const body = await createResp.text();
