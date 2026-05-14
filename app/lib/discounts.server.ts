@@ -15,17 +15,20 @@ type AdminClient = {
 export async function ensureCartTransform(admin: AdminClient): Promise<string | null> {
   const fnResp = await admin.graphql(`{
     shopifyFunctions(first: 25) {
-      nodes { id apiType }
+      nodes { id apiType title }
     }
   }`);
-  const { data: fnData } = await fnResp.json();
-  const fn = (fnData?.shopifyFunctions?.nodes ?? []).find(
+  const fnJson = await fnResp.json();
+  const fnNodes = fnJson?.data?.shopifyFunctions?.nodes ?? [];
+  console.log("[cartTransform] shopifyFunctions:", JSON.stringify(fnNodes));
+  const fn = fnNodes.find(
     (n: { apiType: string }) => n.apiType === "cart_transform",
   );
   if (!fn) {
-    console.warn("[cartTransform] cart_transform function not found — deploy the extension first");
+    console.warn("[cartTransform] cart_transform function not found. Available:", fnNodes.map((n: { apiType: string }) => n.apiType));
     return null;
   }
+  console.log("[cartTransform] found function:", fn.id, fn.title);
 
   const listResp = await admin.graphql(`{
     cartTransforms(first: 10) {
@@ -33,8 +36,12 @@ export async function ensureCartTransform(admin: AdminClient): Promise<string | 
     }
   }`);
   const { data: listData } = await listResp.json();
+  console.log("[cartTransform] existing transforms:", JSON.stringify(listData?.cartTransforms?.nodes));
   const existing = listData?.cartTransforms?.nodes?.[0];
-  if (existing) return existing.id as string;
+  if (existing) {
+    console.log("[cartTransform] reusing existing transform:", existing.id);
+    return existing.id as string;
+  }
 
   const createResp = await admin.graphql(
     `mutation CartTransformCreate($functionId: ID!) {
@@ -88,6 +95,7 @@ export async function syncCartTransformConfig(
     })),
   };
 
+  console.log("[cartTransform] syncing config:", JSON.stringify(config));
   const resp = await admin.graphql(
     `mutation SetCartTransformMetafield($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
@@ -110,5 +118,7 @@ export async function syncCartTransformConfig(
   const { data } = await resp.json();
   if (data?.metafieldsSet?.userErrors?.length) {
     console.error("[cartTransform] Metafield sync errors:", data.metafieldsSet.userErrors);
+  } else {
+    console.log("[cartTransform] Metafield synced OK for transform:", cartTransformId);
   }
 }
