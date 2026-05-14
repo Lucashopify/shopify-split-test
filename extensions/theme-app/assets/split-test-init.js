@@ -415,11 +415,14 @@
 
     function applyPriceDisplay() {
       var canonicalPath = stripMarket(location.pathname);
+      console.log('[SPT] applyPriceDisplay — exps:', exps.length, 'path:', canonicalPath);
 
       for (var pi = 0; pi < exps.length; pi++) {
         var ep = exps[pi];
+        console.log('[SPT] exp[' + pi + '] type:', ep.type, 'id:', ep.id, 'status:', ep.status);
         if (ep.type !== 'PRICE') continue;
         var pvId = asgn[ep.id];
+        console.log('[SPT] pvId:', pvId, 'asgn:', JSON.stringify(asgn));
         if (!pvId) continue;
 
         // Find assigned variant config
@@ -427,16 +430,21 @@
         for (var pj = 0; pj < (ep.variants || []).length; pj++) {
           if (ep.variants[pj].id === pvId) { pv = ep.variants[pj]; break; }
         }
+        console.log('[SPT] pv:', JSON.stringify(pv));
+        console.log('[SPT] skip?', !pv, pv && pv.isControl, pv && !pv.priceAdjType, pv && pv.priceAdjValue == null);
         if (!pv || pv.isControl || !pv.priceAdjType || pv.priceAdjValue == null) continue;
 
         var handle = ep.targetProductHandle;
+        console.log('[SPT] handle:', handle);
         if (!handle) continue;
 
         // PDP — only apply on the matching product page
         var onPdp = /^\/products\//.test(canonicalPath) &&
                     canonicalPath.indexOf(handle) !== -1;
+        console.log('[SPT] onPdp:', onPdp, 'canonicalPath:', canonicalPath);
         if (onPdp) {
           var pdpEls = d.querySelectorAll(PRICE_SELECTORS);
+          console.log('[SPT] pdpEls found:', pdpEls.length);
           applyPriceToElements(pdpEls, pv.priceAdjType, pv.priceAdjValue);
         }
 
