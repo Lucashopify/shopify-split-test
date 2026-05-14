@@ -359,8 +359,124 @@
       }).catch(function() {});
     }
 
+    /* ── Price display ───────────────────────────────────────────────── */
+    // Selectors covering Dawn, Debut, Brooklyn, Sense, Craft and most popular themes.
+    // On PDP these elements are server-rendered so no timing issue.
+    var PRICE_SELECTORS = [
+      '[data-spt-price]',           // our own data attribute (if merchant adds it)
+      '.price-item--regular',       // Dawn + most modern themes
+      '.price__regular .money',
+      '.price__sale .price-item--sale',
+      '[data-product-price]',       // many themes
+      '.product__price .money',     // Debut
+      '.product-single__price',     // Brooklyn
+      '.product__price',
+    ].join(',');
+
+    var CART_PRICE_SELECTORS = [
+      '[data-spt-price]',
+      '.cart-item__price .price-item',
+      '.cart__price',
+      '[data-cart-item-price]',
+      '.cart-item .money',
+      '.cart__product-price',
+    ].join(',');
+
+    function calcAdjustedCents(originalCents, adjType, adjValue) {
+      var n = adjType === 'percent'
+        ? originalCents * (1 + adjValue / 100)
+        : originalCents + adjValue * 100;
+      return Math.max(0, Math.round(n));
+    }
+
+    function formatMoney(cents) {
+      // Use Shopify's formatter if available
+      if (w.Shopify && w.Shopify.formatMoney) return w.Shopify.formatMoney(cents);
+      // Fallback: simple dollar format
+      return '$' + (cents / 100).toFixed(2).replace(/\.00$/, '');
+    }
+
+    function applyPriceToElements(els, adjType, adjValue) {
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        // Store original text once
+        if (!el.dataset.sptOrig) el.dataset.sptOrig = el.textContent.trim();
+        // Parse cents from original text (strip non-numeric except dot/comma)
+        var raw = el.dataset.sptOrig.replace(/[^0-9.,]/g, '').replace(',', '.');
+        var originalCents = Math.round(parseFloat(raw) * 100);
+        if (!originalCents || isNaN(originalCents)) continue;
+        var newCents = calcAdjustedCents(originalCents, adjType, adjValue);
+        el.textContent = formatMoney(newCents);
+      }
+    }
+
+    function applyPriceDisplay() {
+      var canonicalPath = stripMarket(location.pathname);
+
+      for (var pi = 0; pi < exps.length; pi++) {
+        var ep = exps[pi];
+        if (ep.type !== 'PRICE') continue;
+        var pvId = asgn[ep.id];
+        if (!pvId) continue;
+
+        // Find assigned variant config
+        var pv = null;
+        for (var pj = 0; pj < (ep.variants || []).length; pj++) {
+          if (ep.variants[pj].id === pvId) { pv = ep.variants[pj]; break; }
+        }
+        if (!pv || pv.isControl || !pv.priceAdjType || pv.priceAdjValue == null) continue;
+
+        var handle = ep.targetProductHandle;
+        if (!handle) continue;
+
+        // PDP — only apply on the matching product page
+        var onPdp = /^\/products\//.test(canonicalPath) &&
+                    canonicalPath.indexOf(handle) !== -1;
+        if (onPdp) {
+          var pdpEls = d.querySelectorAll(PRICE_SELECTORS);
+          applyPriceToElements(pdpEls, pv.priceAdjType, pv.priceAdjValue);
+        }
+
+        // Product cards on any page — look for cards linked to this product
+        var cards = d.querySelectorAll('a[href*="/products/' + handle + '"]');
+        for (var ci = 0; ci < cards.length; ci++) {
+          var card = cards[ci].closest('.product-card, .card-wrapper, .grid__item, [class*="product"]') || cards[ci].parentElement;
+          if (!card) continue;
+          var cardEls = card.querySelectorAll(PRICE_SELECTORS);
+          applyPriceToElements(cardEls, pv.priceAdjType, pv.priceAdjValue);
+        }
+
+        // Cart — apply to cart line items for this product
+        // We match cart items by looking for product handle in nearby links
+        var cartLinks = d.querySelectorAll('.cart-item a[href*="/products/' + handle + '"], [data-cart-item] a[href*="/products/' + handle + '"]');
+        for (var cli = 0; cli < cartLinks.length; cli++) {
+          var cartItem = cartLinks[cli].closest('.cart-item, [data-cart-item], .cart__item');
+          if (!cartItem) continue;
+          var cartPriceEls = cartItem.querySelectorAll(CART_PRICE_SELECTORS);
+          applyPriceToElements(cartPriceEls, pv.priceAdjType, pv.priceAdjValue);
+        }
+      }
+    }
+
+    // Re-run on cart drawer open / AJAX cart updates
+    function watchCartUpdates() {
+      var hasPriceExp = exps.some(function(e) { return e.type === 'PRICE' && asgn[e.id]; });
+      if (!hasPriceExp) return;
+      // Watch for cart drawer mutations (fires after AJAX cart reload)
+      var cartRoot = d.querySelector('#cart-drawer, #CartDrawer, [id*="cart-drawer"], .cart-drawer, cart-drawer');
+      if (cartRoot) {
+        var cartObs = new MutationObserver(function() { applyPriceDisplay(); });
+        cartObs.observe(cartRoot, { childList: true, subtree: true });
+      }
+      // Also listen for Shopify cart events
+      d.addEventListener('cart:updated', applyPriceDisplay);
+      d.addEventListener('cart:refresh', applyPriceDisplay);
+    }
+
     function init() {
       applyContentVariants();
+      applyPriceDisplay();
+      watchCartUpdates();
       syncCartAttr();
       sendPageView();
       confirmAssign();
