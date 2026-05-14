@@ -6,25 +6,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const result: Record<string, unknown> = {};
 
-  // 0. Recreate cart transform with blockOnFailure: true
-  try {
-    const existing = await admin.graphql(`{ cartTransforms(first: 1) { nodes { id functionId } } }`);
-    const existingJson = await existing.json() as { data?: { cartTransforms?: { nodes: Array<{ id: string; functionId: string }> } } };
-    const transform = existingJson?.data?.cartTransforms?.nodes?.[0];
-    if (transform) {
-      const deleteR = await admin.graphql(
-        `mutation { cartTransformDelete(id: "${transform.id}") { deletedId userErrors { field message } } }`
-      );
-      result.deleteResult = await deleteR.json();
-      const createR = await admin.graphql(
-        `mutation { cartTransformCreate(functionId: "${transform.functionId}", blockOnFailure: true) { cartTransform { id blockOnFailure } userErrors { field message } } }`
-      );
-      result.createWithBlockResult = await createR.json();
-    }
-  } catch (e) {
-    result.recreateError = String(e);
-  }
-
   // 1. List shopify functions
   try {
     const r = await admin.graphql(`{ shopifyFunctions(first: 25) { nodes { id apiType title } } }`);
