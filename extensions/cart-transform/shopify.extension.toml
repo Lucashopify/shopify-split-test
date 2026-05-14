@@ -7,6 +7,10 @@ uid = "550e8400-e29b-41d4-a716-446655440001"
 type = "cart_transform"
 api_version = "2025-07"
 
+[[extensions.targeting]]
+target = "purchase.cart-transform.run"
+input_query = "src/run.graphql"
+export = "run"
 
 [[extensions.metafields]]
 namespace = "split_test_app"
