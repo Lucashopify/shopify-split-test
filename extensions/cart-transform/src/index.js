@@ -1,13 +1,13 @@
 /**
  * Split Test — Cart Transform Function
  *
- * Reads cart attribute _spt_asgn (JSON: { experimentId: variantId, ... })
- * and the function's metafield split_test_app.cart_transform_config
- * (JSON: { experiments: [{ experimentId, targetProductId, variants: [...] }] })
+ * Uses lineUpdate to override the price of a cart line item without
+ * showing a discount label or strikethrough. Requires Shopify Plus
+ * or a development store.
  *
- * Instead of applying a discount (which shows a label and strikethrough price),
- * this expands the cart line with a new fixedPricePerUnit — the price appears
- * as the regular product price with no discount indicator.
+ * Reads:
+ *   cart.attribute("_spt_asgn")  → { experimentId: variantId }
+ *   cartTransform.metafield      → { experiments: [...] }
  */
 
 var NO_OP = { operations: [] };
@@ -40,18 +40,15 @@ function run(input) {
 
     var productId = merch.product.id;
     var productHandle = merch.product.handle;
-    var variantId = merch.id;
-    var originalAmount = parseFloat(merch.price && merch.price.amount);
-    var currencyCode = (merch.price && merch.price.currencyCode) || 'USD';
+    var originalAmount = parseFloat(line.cost && line.cost.amountPerQuantity && line.cost.amountPerQuantity.amount);
+    var currencyCode = (line.cost && line.cost.amountPerQuantity && line.cost.amountPerQuantity.currencyCode) || 'USD';
     if (isNaN(originalAmount) || originalAmount <= 0) continue;
 
     for (var j = 0; j < experiments.length; j++) {
       var exp = experiments[j];
-      // Match by GID, numeric ID, or handle — DB may store any of these formats
       var numericId = productId.split('/').pop();
       var matched = exp.targetProductId === productId ||
                     exp.targetProductId === numericId ||
-                    exp.targetProductId === productHandle ||
                     (exp.targetProductHandle && exp.targetProductHandle === productHandle);
       if (!matched) continue;
 
@@ -72,31 +69,26 @@ function run(input) {
       var adjValue = variantConfig.priceAdjValue;
       if (!adjType || adjValue == null || adjValue === 0) continue;
 
-      // adjValue convention: negative = price decrease, positive = price increase
-      // e.g. adjValue = -10, adjType = 'percent' → 10% off
+      // adjValue: negative = decrease, positive = increase
       var newAmount = adjType === 'percent'
         ? originalAmount * (1 + adjValue / 100)
         : originalAmount + adjValue;
       if (newAmount < 0) newAmount = 0;
 
       operations.push({
-        lineExpand: {
+        lineUpdate: {
           cartLineId: line.id,
-          expandedCartItems: [{
-            merchandiseId: variantId,
-            quantity: line.quantity,
-            price: {
-              adjustment: {
-                fixedPricePerUnit: {
-                  amount: newAmount.toFixed(2),
-                  currencyCode: currencyCode,
-                },
+          price: {
+            adjustment: {
+              fixedPricePerUnit: {
+                amount: newAmount.toFixed(2),
+                currencyCode: currencyCode,
               },
             },
-          }],
+          },
         },
       });
-      break; // only first matching experiment per line
+      break;
     }
   }
 

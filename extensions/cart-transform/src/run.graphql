@@ -6,16 +6,18 @@ query RunInput {
     lines {
       id
       quantity
+      cost {
+        amountPerQuantity {
+          amount
+          currencyCode
+        }
+      }
       merchandise {
         ... on ProductVariant {
           id
           product {
             id
             handle
-          }
-          price {
-            amount
-            currencyCode
           }
         }
       }
