@@ -359,6 +359,69 @@
       }).catch(function() {});
     }
 
+    /*
+     * Intercept "Buy Now" on PRICE experiment product pages.
+     * Dynamic checkout buttons bypass the cart, so spt_asgn never gets set.
+     * We intercept checkout form submissions, add the item to cart first,
+     * write spt_asgn, then redirect to checkout.
+     */
+    function interceptBuyNow() {
+      var canonicalPath = stripMarket(location.pathname);
+      if (!/^\/products\//.test(canonicalPath)) return;
+
+      var hasPriceOnPage = exps.some(function(e) {
+        return e.type === 'PRICE' && asgn[e.id] &&
+               e.targetProductHandle && canonicalPath.indexOf(e.targetProductHandle) !== -1;
+      });
+      if (!hasPriceOnPage) return;
+
+      d.addEventListener('submit', function(ev) {
+        var form = ev.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        // Detect checkout-bound submissions:
+        // - form action contains /checkout
+        // - OR form has a submit button/input with name="checkout"
+        var action = (form.getAttribute('action') || '').toLowerCase();
+        var hasCheckoutBtn = !!form.querySelector('[name="checkout"][type="submit"],[name="checkout"][type="image"]');
+        if (action.indexOf('/checkout') === -1 && !hasCheckoutBtn) return;
+
+        var variantInput = form.querySelector('[name="id"]');
+        if (!variantInput) return; // not a product form — let it proceed
+
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+
+        var variantId = variantInput.value;
+        var qtyInput = form.querySelector('[name="quantity"]');
+        var qty = qtyInput ? Number(qtyInput.value) || 1 : 1;
+        var root = marketRoot().replace(/\/$/, '');
+
+        // Collect any line properties from the form
+        var props = {};
+        var propInputs = form.querySelectorAll('[name^="properties["]');
+        for (var pi = 0; pi < propInputs.length; pi++) {
+          var propName = propInputs[pi].name.replace(/^properties\[/, '').replace(/\]$/, '');
+          props[propName] = propInputs[pi].value;
+        }
+
+        fetch(root + '/cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: variantId, quantity: qty, properties: props }),
+        })
+        .then(function() {
+          return fetch(root + '/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attributes: { spt_asgn: JSON.stringify(asgn) } }),
+          });
+        })
+        .then(function() { location.href = withMarket('/checkout'); })
+        .catch(function() { location.href = withMarket('/checkout'); });
+      }, true);
+    }
+
     /* ── Price display ───────────────────────────────────────────────── */
     // Selectors covering Dawn, Debut, Brooklyn, Sense, Craft and most popular themes.
     // On PDP these elements are server-rendered so no timing issue.
@@ -541,6 +604,7 @@
       applyCartPriceDisplay();
       watchCartUpdates();
       syncCartAttr();
+      interceptBuyNow();
       sendPageView();
       confirmAssign();
       trackAtc();
