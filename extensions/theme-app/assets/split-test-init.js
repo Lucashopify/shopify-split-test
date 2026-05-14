@@ -390,10 +390,13 @@
     }
 
     function formatMoney(cents) {
-      // Use Shopify's formatter if available
-      if (w.Shopify && w.Shopify.formatMoney) return w.Shopify.formatMoney(cents);
-      // Fallback: simple dollar format
-      return '$' + (cents / 100).toFixed(2).replace(/\.00$/, '');
+      var fmt = w.__SPT_MONEY_FMT__;
+      if (fmt && w.Shopify && w.Shopify.formatMoney) return w.Shopify.formatMoney(cents, fmt);
+      if (w.Shopify && w.Shopify.formatMoney) return w.Shopify.formatMoney(cents, '{{amount}}');
+      var amount = (cents / 100).toFixed(2).replace(/\.00$/, '');
+      return fmt ? fmt.replace('{{amount}}', amount).replace('{{amount_no_decimals}}', Math.round(cents/100))
+                     .replace('{{amount_with_comma_separator}}', amount)
+                 : '$' + amount;
     }
 
     function applyPriceToElements(els, adjType, adjValue) {
