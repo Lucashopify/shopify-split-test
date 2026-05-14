@@ -31,7 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shopId, billingPlanName } = await requireDashboardSession(request);
+  const { shopId, billingPlanName, isShopifyPlus } = await requireDashboardSession(request);
   const formData = await request.formData();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -45,6 +45,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!name) return { error: "Experiment name is required." };
   if (!type) return { error: "Experiment type is required." };
+  if (type === "PRICE" && !isShopifyPlus) return { error: "Price experiments require a Shopify Plus store." };
 
   // Plan gating
   const limits = await getPlanLimits(shopId, billingPlanName);
@@ -267,7 +268,7 @@ export default function NewExperiment() {
               const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
               return { value: t.value, label: t.label, disabled: !!locked, badge: locked ? "Starter" : undefined };
             }),
-            { value: "PRICE", label: "Price test — test different prices for a product (Shopify Plus)", disabled: false },
+            { value: "PRICE", label: "Price test — test different prices for a product", disabled: !isShopifyPlus, badge: !isShopifyPlus ? "Shopify Plus only" : undefined },
           ]}
         />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
