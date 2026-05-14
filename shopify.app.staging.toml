@@ -12,7 +12,7 @@ dev_command = "npx react-router dev"
 build_command = "npx react-router build"
 
 [access_scopes]
-scopes = "read_products,write_products,read_themes,write_themes,read_orders,write_discounts"
+scopes = "read_products,write_products,read_themes,write_themes,read_orders,write_discounts,write_cart_transforms"
 
 [auth]
 redirect_urls = [
