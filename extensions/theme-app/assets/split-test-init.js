@@ -446,36 +446,84 @@
           applyPriceToElements(cardEls, pv.priceAdjType, pv.priceAdjValue);
         }
 
-        // Cart — apply to cart line items for this product
-        // We match cart items by looking for product handle in nearby links
-        var cartLinks = d.querySelectorAll('.cart-item a[href*="/products/' + handle + '"], [data-cart-item] a[href*="/products/' + handle + '"]');
-        for (var cli = 0; cli < cartLinks.length; cli++) {
-          var cartItem = cartLinks[cli].closest('.cart-item, [data-cart-item], .cart__item');
-          if (!cartItem) continue;
-          var cartPriceEls = cartItem.querySelectorAll(CART_PRICE_SELECTORS);
-          applyPriceToElements(cartPriceEls, pv.priceAdjType, pv.priceAdjValue);
-        }
       }
     }
 
-    // Re-run on cart drawer open / AJAX cart updates
+    // Fetch cart.js and update prices for matching line items
+    function applyCartPriceDisplay() {
+      var hasPriceExp = exps.some(function(e) { return e.type === 'PRICE' && asgn[e.id]; });
+      if (!hasPriceExp) return;
+
+      var root = marketRoot().replace(/\/$/, '');
+      fetch(root + '/cart.js')
+        .then(function(r) { return r.json(); })
+        .then(function(cart) {
+          var items = cart.items || [];
+          for (var ii = 0; ii < items.length; ii++) {
+            var item = items[ii];
+            for (var pi = 0; pi < exps.length; pi++) {
+              var ep = exps[pi];
+              if (ep.type !== 'PRICE' || item.handle !== ep.targetProductHandle) continue;
+              var pvId = asgn[ep.id];
+              if (!pvId) continue;
+              var pv = null;
+              for (var pj = 0; pj < (ep.variants || []).length; pj++) {
+                if (ep.variants[pj].id === pvId) { pv = ep.variants[pj]; break; }
+              }
+              if (!pv || pv.isControl || !pv.priceAdjType || pv.priceAdjValue == null) continue;
+
+              // item.price is already in cents — no parsing needed
+              var newCents = calcAdjustedCents(item.price, pv.priceAdjType, pv.priceAdjValue);
+              var formatted = formatMoney(newCents);
+
+              // Find cart item element by variant id, key, or line index
+              var variantId = String(item.variant_id);
+              var lineKey = String(item.key);
+              var lineIndex = item.index || (ii + 1);
+              var cartItemEl =
+                d.querySelector('[data-cart-item-key="' + lineKey + '"]') ||
+                d.querySelector('[data-variant-id="' + variantId + '"]') ||
+                d.querySelector('#CartItem-' + lineIndex) ||
+                d.querySelector('.cart-item:nth-child(' + lineIndex + ')');
+
+              // Fallback: find by product handle link
+              if (!cartItemEl) {
+                var link = d.querySelector('a[href*="/products/' + item.handle + '"]');
+                if (link) cartItemEl = link.closest('.cart-item, [data-cart-item], .cart__item, cart-drawer-items > *');
+              }
+
+              if (!cartItemEl) continue;
+              var priceEls = cartItemEl.querySelectorAll(CART_PRICE_SELECTORS);
+              for (var i = 0; i < priceEls.length; i++) {
+                priceEls[i].textContent = formatted;
+              }
+            }
+          }
+        })
+        .catch(function() {});
+    }
+
+    // Watch cart drawer for DOM updates, then re-apply cart prices
     function watchCartUpdates() {
       var hasPriceExp = exps.some(function(e) { return e.type === 'PRICE' && asgn[e.id]; });
       if (!hasPriceExp) return;
-      // Watch for cart drawer mutations (fires after AJAX cart reload)
-      var cartRoot = d.querySelector('#cart-drawer, #CartDrawer, [id*="cart-drawer"], .cart-drawer, cart-drawer');
+
+      function onCartUpdate() { setTimeout(applyCartPriceDisplay, 50); }
+
+      // Dawn: observe the cart-drawer custom element for childList changes
+      var cartRoot = d.querySelector('cart-drawer, #cart-drawer, #CartDrawer, .cart-drawer');
       if (cartRoot) {
-        var cartObs = new MutationObserver(function() { applyPriceDisplay(); });
-        cartObs.observe(cartRoot, { childList: true, subtree: true });
+        new MutationObserver(onCartUpdate).observe(cartRoot, { childList: true, subtree: true });
       }
-      // Also listen for Shopify cart events
-      d.addEventListener('cart:updated', applyPriceDisplay);
-      d.addEventListener('cart:refresh', applyPriceDisplay);
+      d.addEventListener('cart:updated', onCartUpdate);
+      d.addEventListener('cart:refresh', onCartUpdate);
+      d.addEventListener('items-added', onCartUpdate);
     }
 
     function init() {
       applyContentVariants();
       applyPriceDisplay();
+      applyCartPriceDisplay();
       watchCartUpdates();
       syncCartAttr();
       sendPageView();
