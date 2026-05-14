@@ -39,6 +39,7 @@ function run(input) {
     if (!merch || !merch.product) continue;
 
     var productId = merch.product.id;
+    var productHandle = merch.product.handle;
     var variantId = merch.id;
     var originalAmount = parseFloat(merch.price && merch.price.amount);
     var currencyCode = (merch.price && merch.price.currencyCode) || 'USD';
@@ -46,7 +47,12 @@ function run(input) {
 
     for (var j = 0; j < experiments.length; j++) {
       var exp = experiments[j];
-      if (exp.targetProductId !== productId) continue;
+      // Match by GID, numeric ID, or handle — DB may store any of these formats
+      var numericId = productId.split('/').pop();
+      var idMatch = exp.targetProductId === productId ||
+                    exp.targetProductId === numericId;
+      var handleMatch = exp.targetProductHandle && exp.targetProductHandle === productHandle;
+      if (!idMatch && !handleMatch) continue;
 
       var assignedVariantId = asgn[exp.experimentId];
       if (!assignedVariantId) continue;

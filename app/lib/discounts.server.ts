@@ -88,6 +88,7 @@ export async function syncCartTransformConfig(
     experiments: experiments.map((exp) => ({
       experimentId: exp.id,
       targetProductId: exp.targetProductId,
+      targetProductHandle: exp.targetProductHandle,
       variants: exp.variants.map((v) => ({
         id: v.id,
         isControl: v.isControl,
