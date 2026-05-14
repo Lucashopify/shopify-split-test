@@ -43,16 +43,17 @@ export async function ensureCartTransform(admin: AdminClient): Promise<string | 
     return existing.id as string;
   }
 
-  const functionHandle = "split-test-cart-transform";
-  console.log("[cartTransform] creating with functionHandle:", functionHandle);
+  // Pass the bare UUID — cartTransformCreate expects String!, not a GID
+  const functionId = fn.id;
+  console.log("[cartTransform] creating with functionId (bare):", functionId);
   const createResp = await admin.graphql(
-    `mutation CartTransformCreate($functionHandle: String!) {
-      cartTransformCreate(functionHandle: $functionHandle) {
+    `mutation CartTransformCreate($functionId: String!) {
+      cartTransformCreate(functionId: $functionId) {
         cartTransform { id }
         userErrors { field message code }
       }
     }`,
-    { variables: { functionHandle } },
+    { variables: { functionId } },
   );
   const createJson = await createResp.json();
   console.log("[cartTransform] create response:", JSON.stringify(createJson));
