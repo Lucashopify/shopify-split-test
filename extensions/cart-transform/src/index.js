@@ -49,10 +49,11 @@ function run(input) {
       var exp = experiments[j];
       // Match by GID, numeric ID, or handle — DB may store any of these formats
       var numericId = productId.split('/').pop();
-      var idMatch = exp.targetProductId === productId ||
-                    exp.targetProductId === numericId;
-      var handleMatch = exp.targetProductHandle && exp.targetProductHandle === productHandle;
-      if (!idMatch && !handleMatch) continue;
+      var matched = exp.targetProductId === productId ||
+                    exp.targetProductId === numericId ||
+                    exp.targetProductId === productHandle ||
+                    (exp.targetProductHandle && exp.targetProductHandle === productHandle);
+      if (!matched) continue;
 
       var assignedVariantId = asgn[exp.experimentId];
       if (!assignedVariantId) continue;

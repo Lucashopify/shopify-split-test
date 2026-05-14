@@ -215,9 +215,11 @@ export async function syncConfigToMetafield(
     }
     for (const entry of config.experiments) {
       if (entry.type === "PRICE" && entry.targetProductId) {
-        const handle = handleMap[entry.targetProductId] ?? null;
+        // GID lookup result, or fall back to targetProductId itself if it's
+        // stored as a plain handle (no "/" → not a GID)
+        const handle = handleMap[entry.targetProductId] ??
+          (!entry.targetProductId.includes("/") ? entry.targetProductId : null);
         entry.targetProductHandle = handle;
-        // Persist handle to DB so buildConfig (API fallback) can return it
         if (handle) {
           await prisma.experiment.update({
             where: { id: entry.id },
