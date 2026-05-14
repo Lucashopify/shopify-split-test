@@ -4,8 +4,7 @@ import { syncCartTransformConfig } from "../lib/discounts.server";
 import { prisma } from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await requireDashboardSession(request);
-  const shopId = session.shop;
+  const { admin, shopId } = await requireDashboardSession(request);
 
   const result: Record<string, unknown> = {};
 
