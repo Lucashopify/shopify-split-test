@@ -1,6 +1,6 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
-import { useActionData, useLoaderData, useNavigate, useSubmit, useFetcher } from "react-router";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useActionData, useLoaderData, useNavigate, useSubmit } from "react-router";
+import { useState, useCallback } from "react";
 import { Select } from "../components/Select";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -11,15 +11,14 @@ import type { ExperimentType } from "@prisma/client";
 const EXPERIMENT_TYPES = [
   { label: "Theme test — compare two full themes", value: "THEME" },
   { label: "Section / Content test — swap page sections", value: "SECTION" },
-  { label: "Price test — compare product prices", value: "PRICE" },
   { label: "URL redirect — route traffic to different pages", value: "URL_REDIRECT" },
   { label: "Template test — swap a page template (product, collection, etc.)", value: "TEMPLATE" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, shop, restFetch, shopId, billingPlanName, currency } = await requireDashboardSession(request);
+  const { admin, shop, restFetch, shopId, billingPlanName, currency, isShopifyPlus } = await requireDashboardSession(request);
   const [themes, templateFiles, segments, planLimits] = await Promise.all([
-    getThemes(admin, restFetch, shop).catch(() => [] as Array<{ id: string; name: string; role: string; iconUrl: string | null }>),
+    getThemes(admin, restFetch, shop).catch(() => [] as Array<{ id: string; name: string; role: string; createdAt: string; updatedAt: string; iconUrl: string | null }>),
     getThemeTemplateFiles(restFetch).catch(() => [] as Array<{ filename: string; type: string; view: string }>),
     prisma.segment.findMany({ where: { shopId }, select: { id: true, name: true }, orderBy: { createdAt: "desc" } }),
     getPlanLimits(shopId, billingPlanName),
@@ -28,7 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ...t,
     updatedLabel: new Date(t.updatedAt).toISOString().slice(0, 10),
   }));
-  return { themes: themesWithDate, templateFiles, segments, planLimits, currency };
+  return { themes: themesWithDate, templateFiles, segments, planLimits, currency, isShopifyPlus };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -42,7 +41,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const segmentId = String(formData.get("segmentId") ?? "").trim() || null;
   const controlName = String(formData.get("controlName") ?? "Control").trim();
   const variantName = String(formData.get("variantName") ?? "Variant B").trim();
-  const targetProductId = type === "PRICE" ? String(formData.get("targetProductId") ?? "").trim() || null : null;
   const targetSelector = ["SECTION", "PAGE"].includes(type) ? String(formData.get("targetSelector") ?? "").trim() || null : null;
 
   if (!name) return { error: "Experiment name is required." };
@@ -63,19 +61,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } else if (type === "URL_REDIRECT") {
     const redirectUrl = String(formData.get("variantRedirectUrl") ?? "").trim();
     if (redirectUrl) variantBData.redirectUrl = redirectUrl;
-  } else if (type === "PRICE") {
-    variantBData.priceAdjType = String(formData.get("variantPriceAdjType") ?? "percent");
-    const adjValue = parseFloat(String(formData.get("variantPriceAdjValue") ?? ""));
-    if (!isNaN(adjValue)) variantBData.priceAdjValue = adjValue;
   } else if (["SECTION", "PAGE"].includes(type)) {
     const liquid = String(formData.get("variantCustomLiquid") ?? "").trim();
     if (liquid) variantBData.customLiquid = liquid;
   } else if (type === "TEMPLATE") {
     const viewName = String(formData.get("variantViewName") ?? "").trim();
     if (viewName) variantBData.redirectUrl = viewName;
+  } else if (type === "PRICE") {
+    const adjType = String(formData.get("variantPriceAdjType") ?? "percent").trim();
+    const adjValue = Number(formData.get("variantPriceAdjValue") ?? 0);
+    variantBData.priceAdjType = adjType;
+    variantBData.priceAdjValue = adjValue;
   }
 
   const templateType = type === "TEMPLATE" ? String(formData.get("templateType") ?? "").trim() || null : null;
+  const targetProductHandle = type === "PRICE" ? String(formData.get("targetProductHandle") ?? "").trim() || null : null;
 
   const experiment = await prisma.experiment.create({
     data: {
@@ -86,8 +86,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       trafficAllocation,
       segmentId,
       targetTemplate: templateType,
-      targetProductId,
       targetSelector,
+      targetProductHandle,
       variants: { create: [{ name: controlName, isControl: true, trafficWeight: 50 }, variantBData as any] },
     },
   });
@@ -131,7 +131,7 @@ const helpText: React.CSSProperties = {
 };
 
 export default function NewExperiment() {
-  const { themes, templateFiles, segments, planLimits, currency } = useLoaderData<typeof loader>();
+  const { themes, templateFiles, segments, planLimits, currency, isShopifyPlus } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -145,39 +145,13 @@ export default function NewExperiment() {
   const [segmentId, setSegmentId] = useState("");
   const [variantThemeId, setVariantThemeId] = useState("");
   const [variantRedirectUrl, setVariantRedirectUrl] = useState("");
-  const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
-  const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
   const [variantCustomLiquid, setVariantCustomLiquid] = useState("");
   const [targetSelector, setTargetSelector] = useState("");
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
-  const [targetProductId, setTargetProductId] = useState("");
-  const [targetProductTitle, setTargetProductTitle] = useState("");
-  const [productSearch, setProductSearch] = useState("");
-  const [showProductResults, setShowProductResults] = useState(false);
-  const productSearchRef = useRef<HTMLDivElement>(null);
-  const productFetcher = useFetcher<{ products: Array<{ id: string; title: string; imageUrl: string | null; price: string }> }>();
-
-  // Load products when dropdown opens or search query changes
-  useEffect(() => {
-    if (!showProductResults || type !== "PRICE") return;
-    const timer = setTimeout(() => {
-      productFetcher.load(`/api/products/search?q=${encodeURIComponent(productSearch)}`);
-    }, productSearch.trim() ? 300 : 0);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productSearch, showProductResults, type]);
-
-  // Close product dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (productSearchRef.current && !productSearchRef.current.contains(e.target as Node)) {
-        setShowProductResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  const [targetProductHandle, setTargetProductHandle] = useState("");
+  const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
+  const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
 
   const variantThemeOptions = [
     { label: "— Select a theme —", value: "" },
@@ -199,14 +173,16 @@ export default function NewExperiment() {
     fd.set("variantName", variantName);
     if (type === "THEME") fd.set("variantThemeId", variantThemeId);
     if (type === "URL_REDIRECT") fd.set("variantRedirectUrl", variantRedirectUrl);
-    if (type === "PRICE") { fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); fd.set("targetProductId", targetProductId); }
     if (["SECTION", "PAGE"].includes(type)) { fd.set("variantCustomLiquid", variantCustomLiquid); fd.set("targetSelector", targetSelector); }
     if (type === "TEMPLATE") { fd.set("variantViewName", variantViewName); fd.set("templateType", templateType); }
+    if (type === "PRICE") { fd.set("targetProductHandle", targetProductHandle); fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); }
     if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
   }, [name, hypothesis, type, trafficAllocation, controlName, variantName,
-      variantThemeId, variantRedirectUrl, variantPriceAdjType, variantPriceAdjValue,
-      variantCustomLiquid, variantViewName, templateType, segmentId, targetProductId, submit]);
+      variantThemeId, variantRedirectUrl,
+      variantCustomLiquid, variantViewName, templateType,
+      targetProductHandle, variantPriceAdjType, variantPriceAdjValue,
+      segmentId, submit]);
 
   return (
     <div style={{ padding: "2.5rem 3rem", maxWidth: 720, margin: "0 auto" }}>
@@ -264,10 +240,15 @@ export default function NewExperiment() {
           style={input}
           value={type}
           onChange={setType}
-          options={EXPERIMENT_TYPES.map((t) => {
-            const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
-            return { value: t.value, label: t.label, disabled: !!locked, badge: locked ? "Starter" : undefined };
-          })}
+          options={[
+            ...EXPERIMENT_TYPES.map((t) => {
+              const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
+              return { value: t.value, label: t.label, disabled: !!locked, badge: locked ? "Starter" : undefined };
+            }),
+            ...(isShopifyPlus
+              ? [{ value: "PRICE", label: "Price test — test different prices for a product (Shopify Plus)", disabled: false }]
+              : []),
+          ]}
         />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
           <p style={{ ...helpText, color: "#dc2626", marginTop: "0.5rem" }}>
@@ -308,125 +289,6 @@ export default function NewExperiment() {
           </div>
         )}
 
-        {type === "PRICE" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {/* Product picker */}
-            <div ref={productSearchRef} style={{ position: "relative" }}>
-              <label style={label}>Target product</label>
-              {/* Trigger button */}
-              <button
-                type="button"
-                onClick={() => { setShowProductResults((v) => !v); }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: "0.625rem",
-                  padding: "0.5rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6,
-                  background: "#fff", cursor: "pointer", textAlign: "left",
-                  fontSize: "0.875rem", color: targetProductId ? "#111" : "#aaa",
-                  boxSizing: "border-box",
-                }}
-              >
-                {targetProductId ? (
-                  <>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{targetProductTitle}</span>
-                    <span
-                      onMouseDown={(e) => { e.stopPropagation(); setTargetProductId(""); setTargetProductTitle(""); setProductSearch(""); setShowProductResults(false); }}
-                      style={{ color: "#bbb", fontSize: "1rem", lineHeight: 1, padding: "0 2px" }}
-                    >×</span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{ flex: 1 }}>Select a product…</span>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, color: "#aaa" }}>
-                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </>
-                )}
-              </button>
-
-              {/* Dropdown */}
-              {showProductResults && !targetProductId && (
-                <div style={{
-                  position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 200,
-                  background: "#fff", border: "1px solid #e9e9e9", borderRadius: 8,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.10)", overflow: "hidden",
-                }}>
-                  {/* Search input inside dropdown */}
-                  <div style={{ padding: "0.5rem", borderBottom: "1px solid #f0f0f0" }}>
-                    <div style={{ position: "relative" }}>
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "#bbb", pointerEvents: "none" }}>
-                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4"/>
-                        <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-                      </svg>
-                      <input
-                        autoFocus
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        placeholder="Search products…"
-                        autoComplete="off"
-                        style={{
-                          width: "100%", padding: "0.4rem 0.625rem 0.4rem 2rem",
-                          border: "1px solid #e9e9e9", borderRadius: 6,
-                          fontSize: "0.8125rem", color: "#111", outline: "none",
-                          boxSizing: "border-box", background: "#fafafa",
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Product list */}
-                  <div style={{ maxHeight: 240, overflowY: "auto" }}>
-                    {productFetcher.state === "loading" && (
-                      <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.8125rem", color: "#bbb" }}>Loading…</div>
-                    )}
-                    {productFetcher.state !== "loading" && productFetcher.data?.products?.length === 0 && (
-                      <div style={{ padding: "1rem", textAlign: "center", fontSize: "0.8125rem", color: "#bbb" }}>No products found.</div>
-                    )}
-                    {productFetcher.state !== "loading" && (productFetcher.data?.products ?? []).map((p) => (
-                      <div
-                        key={p.id}
-                        onMouseDown={() => { setTargetProductId(p.id); setTargetProductTitle(p.title); setProductSearch(""); setShowProductResults(false); }}
-                        style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.5rem 0.75rem", cursor: "pointer" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f7f7f7")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "")}
-                      >
-                        {p.imageUrl
-                          ? <img src={p.imageUrl} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: "1px solid #f0f0f0" }} />
-                          : <div style={{ width: 40, height: 40, borderRadius: 6, background: "#f0f0f0", flexShrink: 0 }} />
-                        }
-                        <div style={{ flex: 1, overflow: "hidden" }}>
-                          <div style={{ fontSize: "0.875rem", color: "#111", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{p.title}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#999", marginTop: 1 }}>{new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(p.price))}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p style={helpText}>The product whose price will be adjusted for the test variant.</p>
-            </div>
-            {/* Price adjustment */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <label style={label}>Adjustment type</label>
-                <Select
-                  style={input}
-                  value={variantPriceAdjType}
-                  onChange={setVariantPriceAdjType}
-                  options={[
-                    { value: "percent", label: "Percentage discount (%)" },
-                    { value: "fixed", label: "Fixed amount off ($)" },
-                  ]}
-                />
-              </div>
-              <div>
-                <label style={label}>{variantPriceAdjType === "percent" ? "Discount (%)" : "Amount off ($)"}</label>
-                <input style={input} type="number" value={variantPriceAdjValue} onChange={(e) => setVariantPriceAdjValue(e.target.value)} min={0} autoComplete="off" placeholder={variantPriceAdjType === "percent" ? "e.g. 10" : "e.g. 5.00"} />
-              </div>
-            </div>
-            <p style={helpText}>The discount applies automatically at checkout via a Shopify Function — no visible coupon code shown to customers.</p>
-          </div>
-        )}
-
         {["SECTION", "PAGE"].includes(type) && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div>
@@ -449,6 +311,52 @@ export default function NewExperiment() {
                 placeholder={"<p class=\"hero__subtitle\">Summer sale — up to 40% off</p>\n<a href=\"/collections/sale\" class=\"button\">Shop now</a>"}
               />
               <p style={helpText}>Replaces the inner HTML of the target element for visitors assigned to this variant.</p>
+            </div>
+          </div>
+        )}
+
+        {type === "PRICE" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label style={label}>Product handle</label>
+              <input
+                style={input}
+                value={targetProductHandle}
+                onChange={(e) => setTargetProductHandle(e.target.value)}
+                placeholder="e.g. the-collection-snowboard-hydrogen"
+                autoComplete="off"
+              />
+              <p style={helpText}>The URL slug for the product you want to price test. Found in your Shopify admin under Products → the product URL.</p>
+            </div>
+            <div style={{ padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8125rem", color: "#166534" }}>
+              The control variant uses the original price. Configure the price adjustment for {variantName || "Variant B"} below.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label style={label}>{variantName || "Variant B"} adjustment type</label>
+                <Select
+                  style={input}
+                  value={variantPriceAdjType}
+                  onChange={setVariantPriceAdjType}
+                  options={[
+                    { value: "percent", label: "Percent (e.g. -10%)" },
+                    { value: "fixed", label: "Fixed amount (e.g. -5.00)" },
+                  ]}
+                />
+              </div>
+              <div>
+                <label style={label}>{variantName || "Variant B"} adjustment value</label>
+                <input
+                  style={input}
+                  type="number"
+                  value={variantPriceAdjValue}
+                  onChange={(e) => setVariantPriceAdjValue(e.target.value)}
+                  placeholder={variantPriceAdjType === "percent" ? "-10" : "-5.00"}
+                  step={variantPriceAdjType === "percent" ? "1" : "0.01"}
+                  autoComplete="off"
+                />
+                <p style={helpText}>Use negative values to decrease price, positive to increase.</p>
+              </div>
             </div>
           </div>
         )}

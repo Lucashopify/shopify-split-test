@@ -27,7 +27,7 @@
  * }
  */
 import { prisma } from "../../db.server";
-import { priceDiscountCode, syncCartTransformConfig } from "../discounts.server";
+import { syncCartTransformConfig } from "../discounts.server";
 
 export type ExperimentConfigEntry = {
   id: string;
@@ -89,9 +89,8 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
       targetTemplate: exp.targetTemplate,
       targetUrl: exp.targetUrl,
       targetProductId: exp.targetProductId,
-      targetProductHandle: exp.targetProductHandle ?? null,
-      discountCode: exp.type === "PRICE" ? priceDiscountCode(exp.id) : null,
       targetSelector: exp.targetSelector,
+      targetProductHandle: exp.targetProductHandle ?? null,
       segment: exp.segment,
       variants: exp.variants.map((v) => ({
         id: v.id,
@@ -113,7 +112,7 @@ export async function buildConfig(shopId: string): Promise<StorefrontConfig> {
 type AdminClient = {
   graphql: (
     query: string,
-    options?: { variables: Record<string, unknown> },
+    options?: { variables?: Record<string, unknown> },
   ) => Promise<Response>;
 };
 
@@ -193,43 +192,6 @@ export async function syncConfigToMetafield(
 ): Promise<void> {
   const config = await buildConfig(shopId);
 
-  // Resolve product handles for PRICE experiments so the storefront JS
-  // can match product cards by URL handle (not just numeric GID).
-  const priceExps = config.experiments.filter(
-    (e) => e.type === "PRICE" && e.targetProductId,
-  );
-  if (priceExps.length) {
-    const ids = priceExps.map((e) => e.targetProductId as string);
-    const handleResp = await admin.graphql(
-      `query ProductHandles($ids: [ID!]!) {
-        nodes(ids: $ids) {
-          ... on Product { id handle }
-        }
-      }`,
-      { variables: { ids } },
-    );
-    const { data: handleData } = await handleResp.json();
-    const handleMap: Record<string, string> = {};
-    for (const node of handleData?.nodes ?? []) {
-      if (node?.id && node?.handle) handleMap[node.id] = node.handle;
-    }
-    for (const entry of config.experiments) {
-      if (entry.type === "PRICE" && entry.targetProductId) {
-        // GID lookup result, or fall back to targetProductId itself if it's
-        // stored as a plain handle (no "/" → not a GID)
-        const handle = handleMap[entry.targetProductId] ??
-          (!entry.targetProductId.includes("/") ? entry.targetProductId : null);
-        entry.targetProductHandle = handle;
-        if (handle) {
-          await prisma.experiment.update({
-            where: { id: entry.id },
-            data: { targetProductHandle: handle },
-          });
-        }
-      }
-    }
-  }
-
   // Resolve the actual shop GID — required by metafieldsSet
   const shopResp = await admin.graphql(`{ shop { id } }`);
   const { data: shopData } = await shopResp.json();
@@ -275,10 +237,13 @@ export async function syncConfigToMetafield(
     throw new Error(`Metafield sync failed: ${errs}`);
   }
 
-  // Always keep Cart Transform config in sync with the metafield config
-  await syncCartTransformConfig(admin, shopId).catch((err) =>
-    console.error("[syncConfigToMetafield] Cart transform sync failed:", err),
-  );
+  // Sync price experiment config to Cart Transform (Shopify Plus only)
+  try {
+    await syncCartTransformConfig(admin, shopId);
+  } catch (err) {
+    console.warn("[syncConfigToMetafield] Cart transform sync failed:", err);
+  }
+
 }
 
 /**

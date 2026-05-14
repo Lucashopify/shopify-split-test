@@ -46,6 +46,7 @@ model Shop {
   installedAt       DateTime  @default(now())
   uninstalledAt     DateTime?
   webhooksRegisteredAt DateTime?
+  isShopifyPlus        Boolean   @default(false)
 
   // Google Analytics 4 integration
   ga4RefreshToken      String?
@@ -101,9 +102,9 @@ model Experiment {
   targetUrl             String?          // URL or pattern for URL-redirect tests
   targetPageHandle      String?
   targetProductId       String?          // Shopify product GID for PRICE tests
-  targetProductHandle   String?          // Shopify product handle for PRICE tests (for storefront card matching)
+  targetProductHandle   String?          // resolved handle for storefront matching
   targetSelector        String?          // CSS selector for SECTION/PAGE tests
-  shopifyDiscountId     String?          // gid://shopify/DiscountAutomaticApp/... for PRICE tests
+  shopifyDiscountId     String?          // reserved (legacy)
 
   // Traffic
   trafficAllocation     Float            @default(100)  // % of visitors exposed

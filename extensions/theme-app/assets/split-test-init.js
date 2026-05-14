@@ -129,19 +129,6 @@
           clearTimeout(safetyTimer); w.location.replace(withMarket(av.redirectUrl)); return;
         }
       }
-      if (eA.type === 'PRICE' && av.priceAdjValue != null) {
-        html.setAttribute('data-spt-price-adj-type', av.priceAdjType || 'percent');
-        html.setAttribute('data-spt-price-adj-value', String(av.priceAdjValue));
-        // Store numeric product ID extracted from GID (e.g. "gid://shopify/Product/123" → "123")
-        if (eA.targetProductId) {
-          html.setAttribute('data-spt-price-product-id', String(eA.targetProductId).split('/').pop() || '');
-        }
-        // Store product handle for matching product cards via href="/products/handle"
-        if (eA.targetProductHandle) {
-          html.setAttribute('data-spt-price-product-handle', eA.targetProductHandle);
-        }
-        // Cart Transform function handles the real checkout price — no discount code needed.
-      }
       if (eA.type === 'TEMPLATE' && av.redirectUrl) {
         var viewName = av.redirectUrl;
         var tParams = new URLSearchParams(location.search);
@@ -309,17 +296,6 @@
       }, true);
     }
 
-    function syncCart() {
-      if (!Object.keys(asgn).length) return;
-      if (!w.Shopify || !w.Shopify.routes) return;
-      var root = w.Shopify.routes.root || '/';
-      fetch(root + 'cart/update.js', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attributes: { _spt_vid: visitorId, _spt_asgn: JSON.stringify(asgn) } }),
-      }).catch(function () {});
-    }
-
     function confirmAssign() {
       if (!Object.keys(asgn).length) return;
       fetch(apiUrl + '/api/assign', {
@@ -337,133 +313,6 @@
           utmCampaign: _clientAttrs.utmCampaign || undefined,
         }),
       }).catch(function () {});
-    }
-
-    function applyPriceAdj() {
-      // Skip on checkout only — cart DOM manipulation is fine since Cart Transform
-      // (not a discount code) handles the actual checkout price.
-      var canonPath = stripMarket(location.pathname);
-      if (/^\/checkout/.test(canonPath)) return;
-
-      var adjType = html.getAttribute('data-spt-price-adj-type');
-      var adjValue = parseFloat(html.getAttribute('data-spt-price-adj-value') || '');
-      if (!adjType || isNaN(adjValue)) return;
-
-      var targetId = html.getAttribute('data-spt-price-product-id');
-      var targetHandle = html.getAttribute('data-spt-price-product-handle') || '';
-
-      // Skip fixed-amount DOM adjustment when visitor sees a market-converted currency.
-      if (adjType === 'fixed') {
-        var rate = w.Shopify && w.Shopify.currency && parseFloat(w.Shopify.currency.rate);
-        if (rate && rate !== 1) return;
-      }
-
-      // Price regex: handles dot-decimal (€520.95) and comma-decimal (€520,95).
-      var priceRe = /\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/;
-      var moneyFmtComma = ((w.Shopify && w.Shopify.money_format) || '').indexOf('comma_separator') !== -1;
-      function isCommaDecimalStr(str) {
-        var lc = str.lastIndexOf(','), ld = str.lastIndexOf('.');
-        if (lc === -1 && ld === -1) return moneyFmtComma;
-        return lc > ld;
-      }
-      function parsePrice(str) {
-        return isCommaDecimalStr(str)
-          ? parseFloat(str.replace(/\./g, '').replace(',', '.'))
-          : parseFloat(str.replace(/,/g, ''));
-      }
-      function fmtPrice(n, isComma) {
-        var s = n.toFixed(2);
-        return isComma ? s.replace('.', ',') : s;
-      }
-
-      var priceSels = ['.price__regular .price-item--regular', '.price__sale .price-item--sale', '.price-item', '[data-product-price]', '.product__price'];
-
-      function adjustPricesIn(scope) {
-        var seen2 = new WeakSet();
-        var els = [];
-        priceSels.forEach(function(sel) {
-          scope.querySelectorAll(sel).forEach(function(e) {
-            if (!seen2.has(e)) { seen2.add(e); els.push(e); }
-          });
-        });
-        els.forEach(function(e) {
-          // Skip wrapper elements that contain other price elements (avoid double-modify)
-          for (var si = 0; si < priceSels.length; si++) {
-            if (e.querySelector(priceSels[si])) return;
-          }
-          var text = e.textContent || '';
-          var match = text.match(priceRe);
-          if (!match) return;
-          var matchStr = match[0];
-          var isComma = isCommaDecimalStr(matchStr);
-          var raw = parsePrice(matchStr);
-          if (isNaN(raw) || raw <= 0) return;
-          var adj = adjType === 'percent' ? raw * (1 - adjValue / 100) : raw - adjValue;
-          if (adj < 0) adj = 0;
-          e.textContent = text.replace(matchStr, fmtPrice(adj, isComma));
-        });
-      }
-
-      // ── PDP detection ─────────────────────────────────────────────────────
-      // Three signals, any one is enough:
-      // 1. URL path matches /products/<targetHandle>
-      // 2. window.Shopify.product.handle matches
-      // 3. window.Shopify.product.id (numeric) matches targetId
-      var canonPath = stripMarket(location.pathname);
-      var urlHandle = /^\/products\/([^/?#]+)/.exec(canonPath);
-      urlHandle = urlHandle ? urlHandle[1] : null;
-
-      var spProduct = w.Shopify && w.Shopify.product;
-      var spHandle  = spProduct && spProduct.handle;
-      var spId      = spProduct && String(spProduct.id || '');
-
-      var onProductPage = !!urlHandle; // any /products/* URL
-      var onTargetPdp   = (urlHandle  && targetHandle && urlHandle  === targetHandle) ||
-                          (spHandle   && targetHandle && spHandle   === targetHandle) ||
-                          (spId       && targetId     && spId       === targetId);
-      var onWrongPdp    = onProductPage && !onTargetPdp;
-
-      if (onWrongPdp) return;
-
-      if (onTargetPdp) {
-        adjustPricesIn(d);
-        return;
-      }
-
-      // ── Non-PDP (collection, search, recommendations, homepage) ──────────
-      // Strategy: find all links to the target product, walk up to their card
-      // container, then update prices within that container.
-      // This works for ANY theme because every product card has an <a href="/products/handle">.
-      if (!targetHandle) return; // need handle to match links
-
-      // Build a selector that matches links to this specific product
-      var encodedHandle = targetHandle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      var linkSel = 'a[href*="/products/' + encodedHandle + '"]';
-      var links = d.querySelectorAll(linkSel);
-      if (!links.length) return;
-
-      // Walk up from each matching product link to find its item container —
-      // the closest ancestor that contains a price element.
-      // Works for product cards (li, article), cart rows (tr), and cart drawers (div).
-      var seenContainers = new WeakSet();
-      for (var li = 0; li < links.length; li++) {
-        var cur = links[li].parentElement;
-        var container = null;
-        var depth = 0;
-        while (cur && cur !== d.body && depth < 12) {
-          depth++;
-          var hasPriceEl = false;
-          for (var pi = 0; pi < priceSels.length; pi++) {
-            if (cur.querySelector(priceSels[pi])) { hasPriceEl = true; break; }
-          }
-          if (hasPriceEl) { container = cur; break; }
-          cur = cur.parentElement;
-        }
-        if (container && !seenContainers.has(container)) {
-          seenContainers.add(container);
-          adjustPricesIn(container);
-        }
-      }
     }
 
     function applyContentVariants() {
@@ -498,12 +347,23 @@
       for (var cq = 0; cq < all.length; cq++) { all[cq].style.visibility = ''; }
     }
 
+    /* sync assignment to cart attribute so Cart Transform function can read it */
+    function syncCartAttr() {
+      var hasPriceExp = exps.some(function(e) { return e.type === 'PRICE' && asgn[e.id]; });
+      if (!hasPriceExp) return;
+      var root = marketRoot().replace(/\/$/, '');
+      fetch(root + '/cart/update.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attributes: { _spt_asgn: JSON.stringify(asgn) } }),
+      }).catch(function() {});
+    }
+
     function init() {
       applyContentVariants();
+      syncCartAttr();
       sendPageView();
-      syncCart();
       confirmAssign();
-      applyPriceAdj();
       trackAtc();
       trackCheckout();
     }

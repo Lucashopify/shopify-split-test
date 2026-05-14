@@ -55,14 +55,17 @@ const shopify = shopifyApp({
         include: { billingPlan: true },
       });
 
+      let isShopifyPlus = false;
       try {
         const meta = await getShopMetadata(admin);
+        isShopifyPlus = meta.plan?.shopifyPlus ?? false;
         await prisma.shop.update({
           where: { id: shop.id },
           data: {
             myshopifyDomain: meta.myshopifyDomain,
             currency: meta.currencyCode,
             timezone: meta.ianaTimezone,
+            isShopifyPlus,
           },
         });
       } catch (err) {
@@ -81,11 +84,14 @@ const shopify = shopifyApp({
         console.error("[afterAuth] Failed to sync config metafield:", err);
       }
 
-      try {
-        await ensureCartTransform(admin);
-      } catch (err) {
-        console.error("[afterAuth] Failed to ensure cart transform:", err);
+      if (isShopifyPlus) {
+        try {
+          await ensureCartTransform(admin);
+        } catch (err) {
+          console.error("[afterAuth] Failed to ensure cart transform:", err);
+        }
       }
+
     },
   },
   ...(process.env.SHOP_CUSTOM_DOMAIN

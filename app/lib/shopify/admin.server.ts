@@ -170,7 +170,7 @@ export async function getShopMetadata(admin: {
         primaryDomain { url }
         currencyCode
         ianaTimezone
-        plan { displayName }
+        plan { displayName shopifyPlus }
       }
     }
   `);
@@ -181,6 +181,6 @@ export async function getShopMetadata(admin: {
     primaryDomain: { url: string };
     currencyCode: string;
     ianaTimezone: string;
-    plan: { displayName: string };
+    plan: { displayName: string; shopifyPlus: boolean };
   };
 }

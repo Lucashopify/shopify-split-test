@@ -4,4 +4,4 @@
  * but we still request them so they're clear in the OAuth prompt.
  */
 export const REQUIRED_SCOPES =
-  "read_products,write_products,read_themes,write_themes,read_orders,write_discounts,write_cart_transforms";
+  "read_products,write_products,read_themes,write_themes,read_orders,write_cart_transforms";

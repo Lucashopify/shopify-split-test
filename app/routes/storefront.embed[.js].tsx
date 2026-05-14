@@ -108,10 +108,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         w.location.replace(av.redirectUrl);return;
       }
     }
-    if(eA.type==='PRICE'&&av.priceAdjValue!=null){
-      html.setAttribute('data-spt-price-adj-type',av.priceAdjType||'percent');
-      html.setAttribute('data-spt-price-adj-value',String(av.priceAdjValue));
-    }
   }
 
   /* ── GA4 experiment impression ───────────────────────────────────── */
@@ -171,17 +167,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }));
   }
 
-  function syncCart(){
-    if(!Object.keys(asgn).length)return;
-    if(!w.Shopify||!w.Shopify.routes)return;
-    var root=w.Shopify.routes.root||'/';
-    fetch(root+'cart/update.js',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({attributes:{_spt_vid:visitorId,_spt_asgn:JSON.stringify(asgn)}}),
-    }).catch(function(){});
-  }
-
   function confirmAssign(){
     if(!Object.keys(asgn).length)return;
     fetch(apiUrl+'/api/assign',{
@@ -197,32 +182,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }).catch(function(){});
   }
 
-  function applyPriceAdj(){
-    var adjType=html.getAttribute('data-spt-price-adj-type');
-    var adjValue=parseFloat(html.getAttribute('data-spt-price-adj-value')||'');
-    if(!adjType||isNaN(adjValue))return;
-    var sels=['.price__regular .price-item--regular','.price__sale .price-item--sale','.price-item','[data-product-price]','.product__price'];
-    var seen=new WeakSet();
-    sels.forEach(function(sel){
-      d.querySelectorAll(sel).forEach(function(el){
-        if(seen.has(el))return;seen.add(el);
-        var text=el.textContent||'';
-        var match=text.match(/[\\d,]+\\.?\\d*/);
-        if(!match)return;
-        var raw=parseFloat(match[0].replace(/,/g,''));
-        if(isNaN(raw))return;
-        var adj=adjType==='percent'?raw*(1-adjValue/100):raw-adjValue;
-        if(adj<0)adj=0;
-        el.textContent=text.replace(match[0],adj.toFixed(2));
-      });
-    });
-  }
-
   function init(){
     sendPageView();
-    syncCart();
     confirmAssign();
-    applyPriceAdj();
   }
 
   if(d.readyState==='loading'){d.addEventListener('DOMContentLoaded',init);}else{init();}

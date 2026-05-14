@@ -21,7 +21,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const variant = experiment.variants.find((v) => v.id === params.variantId);
   if (!variant) throw new Response("Variant not found", { status: 404 });
 
-  let themes: Array<{ id: string; name: string; role: string; iconUrl: string | null }> = [];
+  let themes: Array<{ id: string; name: string; role: string; createdAt: string; updatedAt: string; iconUrl: string | null }> = [];
   let templateFiles: Array<{ filename: string; type: string; view: string }> = [];
   if (experiment.type === "THEME") {
     try { themes = await getThemes(admin, restFetch, session.shop); } catch {}
@@ -53,15 +53,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     updates.themeId = String(formData.get("themeId") ?? "").trim() || null;
   } else if (experiment.type === "URL_REDIRECT") {
     updates.redirectUrl = String(formData.get("redirectUrl") ?? "").trim() || null;
-  } else if (experiment.type === "PRICE") {
-    const adjType = String(formData.get("priceAdjType") ?? "percent");
-    const adjValue = parseFloat(String(formData.get("priceAdjValue") ?? "0"));
-    updates.priceAdjType = adjType;
-    updates.priceAdjValue = isNaN(adjValue) ? null : adjValue;
   } else if (["SECTION", "PAGE"].includes(experiment.type)) {
     updates.customLiquid = String(formData.get("customLiquid") ?? "").trim() || null;
   } else if (experiment.type === "TEMPLATE") {
     updates.redirectUrl = String(formData.get("redirectUrl") ?? "").trim() || null;
+  } else if (experiment.type === "PRICE") {
+    const adjType = String(formData.get("priceAdjType") ?? "").trim() || null;
+    const adjValueRaw = formData.get("priceAdjValue");
+    updates.priceAdjType = adjType;
+    updates.priceAdjValue = adjValueRaw !== null && adjValueRaw !== "" ? Number(adjValueRaw) : null;
   }
 
   await prisma.variant.update({ where: { id: variant.id }, data: updates });
@@ -130,9 +130,9 @@ export default function VariantEditor() {
   const [trafficWeight, setTrafficWeight] = useState(String(variant.trafficWeight));
   const [themeId, setThemeId] = useState(variant.themeId ?? "");
   const [redirectUrl, setRedirectUrl] = useState(variant.redirectUrl ?? "");
+  const [customLiquid, setCustomLiquid] = useState(variant.customLiquid ?? "");
   const [priceAdjType, setPriceAdjType] = useState(variant.priceAdjType ?? "percent");
   const [priceAdjValue, setPriceAdjValue] = useState(variant.priceAdjValue != null ? String(variant.priceAdjValue) : "");
-  const [customLiquid, setCustomLiquid] = useState(variant.customLiquid ?? "");
 
   const handleSave = useCallback(() => {
     const fd = new FormData();
@@ -140,11 +140,11 @@ export default function VariantEditor() {
     fd.set("trafficWeight", trafficWeight);
     if (type === "THEME") fd.set("themeId", themeId);
     if (type === "URL_REDIRECT") fd.set("redirectUrl", redirectUrl);
-    if (type === "PRICE") { fd.set("priceAdjType", priceAdjType); fd.set("priceAdjValue", priceAdjValue); }
     if (["SECTION", "PAGE"].includes(type)) fd.set("customLiquid", customLiquid);
     if (type === "TEMPLATE") fd.set("redirectUrl", redirectUrl);
+    if (type === "PRICE") { fd.set("priceAdjType", priceAdjType); fd.set("priceAdjValue", priceAdjValue); }
     submit(fd, { method: "post" });
-  }, [name, trafficWeight, themeId, redirectUrl, priceAdjType, priceAdjValue, customLiquid, type, submit]);
+  }, [name, trafficWeight, themeId, redirectUrl, customLiquid, priceAdjType, priceAdjValue, type, submit]);
 
   const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const themeOptions = [
@@ -246,35 +246,6 @@ export default function VariantEditor() {
         </div>
       )}
 
-      {/* PRICE */}
-      {type === "PRICE" && (
-        <div style={card}>
-          <div style={cardTitle}>Price adjustment</div>
-          {variant.isControl ? (
-            <div style={infoBanner}>The control variant shows the original price. No adjustment needed.</div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <label style={label}>Adjustment type</label>
-                <Select
-                  style={input}
-                  value={priceAdjType}
-                  onChange={setPriceAdjType}
-                  options={[
-                    { value: "percent", label: "Percentage discount (%)" },
-                    { value: "fixed", label: "Fixed price ($)" },
-                  ]}
-                />
-              </div>
-              <div>
-                <label style={label}>{priceAdjType === "percent" ? "Discount (%)" : "Fixed price ($)"}</label>
-                <input style={input} type="number" value={priceAdjValue} onChange={(e) => setPriceAdjValue(e.target.value)} min={0} autoComplete="off" placeholder={priceAdjType === "percent" ? "e.g. 10" : "e.g. 29.99"} />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* SECTION / PAGE */}
       {["SECTION", "PAGE"].includes(type) && (
         <div style={card}>
@@ -292,6 +263,49 @@ export default function VariantEditor() {
           <div style={{ ...infoBanner, marginTop: "1rem" }}>
             The Variant Content block stays hidden until the correct variant's HTML is injected — no content flash.
           </div>
+        </div>
+      )}
+
+      {/* PRICE */}
+      {type === "PRICE" && (
+        <div style={card}>
+          <div style={cardTitle}>Price adjustment</div>
+          {variant.isControl ? (
+            <div style={infoBanner}>The control variant uses the original product price. No adjustment needed.</div>
+          ) : (
+            <>
+              <p style={{ ...helpText, marginTop: 0, marginBottom: "1rem" }}>
+                Set the price adjustment for visitors assigned to this variant. Changes are applied via Shopify Cart Transform at checkout.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={label}>Adjustment type</label>
+                  <Select
+                    style={input}
+                    value={priceAdjType}
+                    onChange={setPriceAdjType}
+                    options={[
+                      { value: "percent", label: "Percent (e.g. -10%)" },
+                      { value: "fixed", label: "Fixed amount (e.g. -5.00)" },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label style={label}>Value</label>
+                  <input
+                    style={input}
+                    type="number"
+                    value={priceAdjValue}
+                    onChange={(e) => setPriceAdjValue(e.target.value)}
+                    placeholder={priceAdjType === "percent" ? "-10" : "-5.00"}
+                    step={priceAdjType === "percent" ? "1" : "0.01"}
+                    autoComplete="off"
+                  />
+                  <p style={helpText}>Use negative values to decrease price, positive to increase.</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

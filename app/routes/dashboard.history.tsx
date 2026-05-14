@@ -81,8 +81,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  THEME: "Theme", SECTION: "Section", PRICE: "Price",
-  URL_REDIRECT: "URL redirect", TEMPLATE: "Template", PAGE: "Page",
+  THEME: "Theme", SECTION: "Section",
+  URL_REDIRECT: "URL redirect", TEMPLATE: "Template", PAGE: "Page", PRICE: "Price",
 };
 
 const STATUS_COLORS: Record<string, string> = {

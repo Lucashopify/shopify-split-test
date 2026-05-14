@@ -70,11 +70,13 @@ function run(input) {
 
       var adjType = variantConfig.priceAdjType;
       var adjValue = variantConfig.priceAdjValue;
-      if (!adjType || adjValue == null || adjValue <= 0) continue;
+      if (!adjType || adjValue == null || adjValue === 0) continue;
 
+      // adjValue convention: negative = price decrease, positive = price increase
+      // e.g. adjValue = -10, adjType = 'percent' → 10% off
       var newAmount = adjType === 'percent'
-        ? originalAmount * (1 - adjValue / 100)
-        : originalAmount - adjValue;
+        ? originalAmount * (1 + adjValue / 100)
+        : originalAmount + adjValue;
       if (newAmount < 0) newAmount = 0;
 
       operations.push({

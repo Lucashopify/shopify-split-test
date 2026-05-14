@@ -107,9 +107,9 @@ function ResultBadge({
 const TYPE_LABELS: Record<string, string> = {
   THEME: "Theme",
   SECTION: "Section",
-  PRICE: "Price",
   URL_REDIRECT: "URL redirect",
   TEMPLATE: "Template",
+  PRICE: "Price",
 };
 
 export default function ExperimentsIndex() {
