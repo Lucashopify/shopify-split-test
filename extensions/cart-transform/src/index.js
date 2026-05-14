@@ -2,24 +2,23 @@
  * Split Test — Cart Transform Function
  *
  * Uses lineUpdate to override the price of a cart line item without
- * showing a discount label or strikethrough. Requires Shopify Plus
- * or a development store.
+ * showing a discount label or strikethrough.
  *
  * Reads:
  *   cart.attribute("_spt_asgn")  → { experimentId: variantId }
  *   cartTransform.metafield      → { experiments: [...] }
  */
 
-var NO_OP = { operations: [] };
+const NO_OP = { operations: [] };
 
-function run(input) {
-  var asgnAttr = input.cart && input.cart.attribute && input.cart.attribute.value;
+export function run(input) {
+  const asgnAttr = input.cart?.attribute?.value;
   if (!asgnAttr) return NO_OP;
 
-  var configStr = input.cartTransform && input.cartTransform.metafield && input.cartTransform.metafield.value;
+  const configStr = input.cartTransform?.metafield?.value;
   if (!configStr) return NO_OP;
 
-  var asgn, config;
+  let asgn, config;
   try {
     asgn = JSON.parse(asgnAttr);
     config = JSON.parse(configStr);
@@ -27,52 +26,45 @@ function run(input) {
     return NO_OP;
   }
 
-  var experiments = config.experiments;
+  const experiments = config.experiments;
   if (!Array.isArray(experiments) || !experiments.length) return NO_OP;
 
-  var operations = [];
-  var lines = (input.cart && input.cart.lines) || [];
+  const operations = [];
+  const lines = input.cart?.lines ?? [];
 
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
-    var merch = line.merchandise;
+  for (const line of lines) {
+    const merch = line.merchandise;
     if (!merch || !merch.product) continue;
 
-    var productId = merch.product.id;
-    var productHandle = merch.product.handle;
-    var originalAmount = parseFloat(line.cost && line.cost.amountPerQuantity && line.cost.amountPerQuantity.amount);
-    var currencyCode = (line.cost && line.cost.amountPerQuantity && line.cost.amountPerQuantity.currencyCode) || 'USD';
+    const productId = merch.product?.id;
+    const productHandle = merch.product?.handle;
+    const originalAmount = parseFloat(line.cost?.amountPerQuantity?.amount);
     if (isNaN(originalAmount) || originalAmount <= 0) continue;
 
-    for (var j = 0; j < experiments.length; j++) {
-      var exp = experiments[j];
-      var numericId = productId.split('/').pop();
-      var matched = exp.targetProductId === productId ||
-                    exp.targetProductId === numericId ||
-                    (exp.targetProductHandle && exp.targetProductHandle === productHandle);
+    for (const exp of experiments) {
+      const numericId = productId?.split("/").pop();
+      const matched =
+        exp.targetProductId === productId ||
+        exp.targetProductId === numericId ||
+        (exp.targetProductHandle && exp.targetProductHandle === productHandle);
       if (!matched) continue;
 
-      var assignedVariantId = asgn[exp.experimentId];
+      const assignedVariantId = asgn[exp.experimentId];
       if (!assignedVariantId) continue;
 
-      var variantConfig = null;
-      var variants = exp.variants || [];
-      for (var k = 0; k < variants.length; k++) {
-        if (variants[k].id === assignedVariantId) {
-          variantConfig = variants[k];
-          break;
-        }
-      }
+      const variantConfig = (exp.variants ?? []).find(
+        (v) => v.id === assignedVariantId,
+      );
       if (!variantConfig || variantConfig.isControl) continue;
 
-      var adjType = variantConfig.priceAdjType;
-      var adjValue = variantConfig.priceAdjValue;
+      const adjType = variantConfig.priceAdjType;
+      const adjValue = variantConfig.priceAdjValue;
       if (!adjType || adjValue == null || adjValue === 0) continue;
 
-      // adjValue: negative = decrease, positive = increase
-      var newAmount = adjType === 'percent'
-        ? originalAmount * (1 + adjValue / 100)
-        : originalAmount + adjValue;
+      let newAmount =
+        adjType === "percent"
+          ? originalAmount * (1 + adjValue / 100)
+          : originalAmount + adjValue;
       if (newAmount < 0) newAmount = 0;
 
       operations.push({
@@ -82,7 +74,6 @@ function run(input) {
             adjustment: {
               fixedPricePerUnit: {
                 amount: newAmount.toFixed(2),
-                currencyCode: currencyCode,
               },
             },
           },
@@ -92,9 +83,5 @@ function run(input) {
     }
   }
 
-  return { operations: operations };
+  return { operations };
 }
-
-var input = ShopifyFunction.readInput();
-var output = run(input);
-ShopifyFunction.writeOutput(output);

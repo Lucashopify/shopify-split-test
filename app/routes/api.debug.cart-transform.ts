@@ -6,6 +6,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const result: Record<string, unknown> = {};
 
+  // 0. Check shop eligibility for cart transform operations
+  try {
+    const r = await admin.graphql(`{ shop { features { cartTransform { eligibleOperations } } } }`);
+    const j = await r.json() as { data?: { shop?: { features?: { cartTransform?: unknown } } } };
+    result.shopFeatures = j?.data?.shop?.features?.cartTransform;
+  } catch (e) {
+    result.shopFeaturesError = String(e);
+  }
+
   // 1. List shopify functions
   try {
     const r = await admin.graphql(`{ shopifyFunctions(first: 25) { nodes { id apiType title } } }`);
