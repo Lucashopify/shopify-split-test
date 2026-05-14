@@ -375,6 +375,8 @@
 
     var CART_PRICE_SELECTORS = [
       '[data-spt-price]',
+      '.price--end',                          // Dawn cart drawer + cart page
+      '.cart-item__price-wrapper .price',     // Dawn
       '.cart-item__price .price-item',
       '.cart__price',
       '[data-cart-item-price]',
@@ -479,27 +481,34 @@
               var newCents = calcAdjustedCents(item.price, pv.priceAdjType, pv.priceAdjValue);
               var formatted = formatMoney(newCents);
 
-              // Find cart item element by variant id, key, or line index
+              // Find cart item element — scope to a known cart container first
+              // to avoid matching PDP elements like pickup-availability
               var variantId = String(item.variant_id);
               var lineKey = String(item.key);
-              var lineIndex = item.index || (ii + 1);
-              var cartItemEl =
-                d.querySelector('[data-cart-item-key="' + lineKey + '"]') ||
-                d.querySelector('[data-variant-id="' + variantId + '"]') ||
-                d.querySelector('#CartItem-' + lineIndex) ||
-                d.querySelector('.cart-item:nth-child(' + lineIndex + ')');
-
-              // Fallback: find by product handle link
+              var lineIndex = ii + 1;
+              var cartContainerSel = 'cart-drawer-items, #cart-items, .cart__items, cart-drawer, #CartDrawer, .cart-drawer';
+              var cartRoot = d.querySelector(cartContainerSel);
+              var cartItemEl = null;
+              if (cartRoot) {
+                cartItemEl =
+                  cartRoot.querySelector('#CartItem-' + lineIndex) ||
+                  cartRoot.querySelector('[data-cart-item-key="' + lineKey + '"]') ||
+                  cartRoot.querySelector('[data-variant-id="' + variantId + '"]');
+              }
+              // Global fallback (cart page)
+              if (!cartItemEl) {
+                cartItemEl =
+                  d.querySelector('#CartItem-' + lineIndex) ||
+                  d.querySelector('tr.cart-item:nth-of-type(' + lineIndex + ')');
+              }
+              // Link fallback
               if (!cartItemEl) {
                 var link = d.querySelector('a[href*="/products/' + item.handle + '"]');
                 if (link) cartItemEl = link.closest('.cart-item, [data-cart-item], .cart__item, cart-drawer-items > *');
               }
 
-              console.log('[SPT] cart item handle:', item.handle, 'price cents:', item.price, 'new:', newCents, 'formatted:', formatted);
-              console.log('[SPT] cartItemEl:', cartItemEl ? cartItemEl.id || cartItemEl.className : 'NOT FOUND');
               if (!cartItemEl) continue;
               var priceEls = cartItemEl.querySelectorAll(CART_PRICE_SELECTORS);
-              console.log('[SPT] cart priceEls:', priceEls.length);
               for (var i = 0; i < priceEls.length; i++) {
                 priceEls[i].textContent = formatted;
               }
