@@ -495,8 +495,11 @@
                 if (link) cartItemEl = link.closest('.cart-item, [data-cart-item], .cart__item, cart-drawer-items > *');
               }
 
+              console.log('[SPT] cart item handle:', item.handle, 'price cents:', item.price, 'new:', newCents, 'formatted:', formatted);
+              console.log('[SPT] cartItemEl:', cartItemEl ? cartItemEl.id || cartItemEl.className : 'NOT FOUND');
               if (!cartItemEl) continue;
               var priceEls = cartItemEl.querySelectorAll(CART_PRICE_SELECTORS);
+              console.log('[SPT] cart priceEls:', priceEls.length);
               for (var i = 0; i < priceEls.length; i++) {
                 priceEls[i].textContent = formatted;
               }
