@@ -6,13 +6,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const result: Record<string, unknown> = {};
 
-  // 0. Check shop eligibility for cart transform operations
+  // 0. Set blockOnFailure: true so crashes are visible
   try {
-    const r = await admin.graphql(`{ shop { features { cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } } } }`);
-    const raw = await r.text();
-    result.shopFeaturesRaw = raw;
+    const existing = await admin.graphql(`{ cartTransforms(first: 1) { nodes { id } } }`);
+    const existingJson = await existing.json() as { data?: { cartTransforms?: { nodes: Array<{ id: string }> } } };
+    const transformId = existingJson?.data?.cartTransforms?.nodes?.[0]?.id;
+    if (transformId) {
+      const updateR = await admin.graphql(
+        `mutation { cartTransformUpdate(id: "${transformId}", blockOnFailure: true) { cartTransform { id blockOnFailure } userErrors { field message } } }`
+      );
+      const updateJ = await updateR.json();
+      result.blockOnFailureUpdate = updateJ;
+    }
   } catch (e) {
-    result.shopFeaturesError = String(e);
+    result.blockOnFailureError = String(e);
   }
 
   // 1. List shopify functions
