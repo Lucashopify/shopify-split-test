@@ -8,7 +8,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // 0. Check shop eligibility for cart transform operations
   try {
-    const r = await admin.graphql(`{ shop { features { cartTransform { eligibleOperations } } } }`);
+    const r = await admin.graphql(`{ shop { features { cartTransform { eligibleOperations { lineExpand lineUpdate lineMerge } } } } }`);
     const raw = await r.text();
     result.shopFeaturesRaw = raw;
   } catch (e) {
