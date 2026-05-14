@@ -123,6 +123,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   console.log("[auth/callback] Shop saved:", dbShop.id);
 
+  // Fetch shop metadata (Plus status, timezone, currency)
+  try {
+    const metaResp = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": access_token },
+      body: JSON.stringify({ query: `{ shop { myshopifyDomain currencyCode ianaTimezone plan { shopifyPlus } } }` }),
+    });
+    const metaJson = await metaResp.json() as { data?: { shop?: { myshopifyDomain?: string; currencyCode?: string; ianaTimezone?: string; plan?: { shopifyPlus?: boolean } } } };
+    const meta = metaJson.data?.shop;
+    if (meta) {
+      await prisma.shop.update({
+        where: { id: dbShop.id },
+        data: {
+          myshopifyDomain: meta.myshopifyDomain,
+          currency: meta.currencyCode,
+          timezone: meta.ianaTimezone,
+          isShopifyPlus: meta.plan?.shopifyPlus ?? false,
+        },
+      });
+    }
+  } catch (err) {
+    console.error("[auth/callback] Failed to fetch shop metadata (non-fatal):", err);
+  }
+
   // Create metafield definition with PUBLIC_READ storefront access so Liquid can read it
   try {
     const gqlHeaders = {

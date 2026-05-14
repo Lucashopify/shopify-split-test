@@ -267,9 +267,7 @@ export default function NewExperiment() {
               const locked = planLimits && !planLimits.allowedTypes.includes(t.value);
               return { value: t.value, label: t.label, disabled: !!locked, badge: locked ? "Starter" : undefined };
             }),
-            ...(isShopifyPlus
-              ? [{ value: "PRICE", label: "Price test — test different prices for a product (Shopify Plus)", disabled: false }]
-              : []),
+            { value: "PRICE", label: "Price test — test different prices for a product (Shopify Plus)", disabled: false },
           ]}
         />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
