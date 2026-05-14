@@ -389,10 +389,9 @@
     }
 
     /*
-     * Intercept "Buy Now" on PRICE experiment product pages.
-     * Dynamic checkout buttons bypass the cart, so spt_asgn never gets set.
-     * We intercept checkout form submissions, add the item to cart first,
-     * write spt_asgn, then redirect to checkout.
+     * Intercept "Buy it now" button on PRICE experiment product pages.
+     * The button (name="checkout") bypasses the cart, so spt_asgn never gets set.
+     * We intercept the click, add the item to cart, write spt_asgn, then redirect.
      */
     function interceptBuyNow() {
       var canonicalPath = stripMarket(location.pathname);
@@ -404,29 +403,15 @@
       });
       if (!hasPriceOnPage) return;
 
-      d.addEventListener('submit', function(ev) {
-        var form = ev.target;
-        if (!form || form.tagName !== 'FORM') return;
-
-        // Detect checkout-bound submissions:
-        // - form action contains /checkout
-        // - OR form has a submit button/input with name="checkout"
-        var action = (form.getAttribute('action') || '').toLowerCase();
-        var hasCheckoutBtn = !!form.querySelector('[name="checkout"][type="submit"],[name="checkout"][type="image"]');
-        if (action.indexOf('/checkout') === -1 && !hasCheckoutBtn) return;
-
+      function doCheckout(form) {
         var variantInput = form.querySelector('[name="id"]');
-        if (!variantInput) return; // not a product form — let it proceed
-
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
+        if (!variantInput) return false;
 
         var variantId = variantInput.value;
         var qtyInput = form.querySelector('[name="quantity"]');
         var qty = qtyInput ? Number(qtyInput.value) || 1 : 1;
         var root = marketRoot().replace(/\/$/, '');
 
-        // Collect any line properties from the form
         var props = {};
         var propInputs = form.querySelectorAll('[name^="properties["]');
         for (var pi = 0; pi < propInputs.length; pi++) {
@@ -448,6 +433,29 @@
         })
         .then(function() { location.href = withMarket('/checkout'); })
         .catch(function() { location.href = withMarket('/checkout'); });
+        return true;
+      }
+
+      // Intercept clicks on any element with name="checkout" inside a product form
+      d.addEventListener('click', function(ev) {
+        var t = ev.target;
+        if (!t) return;
+        var btn = t.closest ? t.closest('[name="checkout"]') : (t.name === 'checkout' ? t : null);
+        if (!btn) return;
+        var form = btn.form || btn.closest('form');
+        if (!form || !form.querySelector('[name="id"]')) return;
+        if (!doCheckout(form)) return;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+      }, true);
+
+      // Also intercept form submit as fallback
+      d.addEventListener('submit', function(ev) {
+        var form = ev.target;
+        if (!form || !form.querySelector('[name="checkout"]') || !form.querySelector('[name="id"]')) return;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        doCheckout(form);
       }, true);
     }
 
