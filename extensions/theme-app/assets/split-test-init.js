@@ -360,6 +360,35 @@
     }
 
     /*
+     * Hide express checkout buttons (Shop Pay, Apple Pay, Google Pay) on PRICE
+     * experiment product pages. These render in iframes and cannot be intercepted,
+     * so we hide them to force users through the regular checkout flow.
+     */
+    function hideExpressCheckout() {
+      var canonicalPath = stripMarket(location.pathname);
+      if (!/^\/products\//.test(canonicalPath)) return;
+
+      var hasPriceOnPage = exps.some(function(e) {
+        return e.type === 'PRICE' && asgn[e.id] && !( (function() {
+          var vs = e.variants || [], vid = asgn[e.id];
+          for (var i = 0; i < vs.length; i++) { if (vs[i].id === vid && vs[i].isControl) return true; }
+          return false;
+        })() ) &&
+               e.targetProductHandle && canonicalPath.indexOf(e.targetProductHandle) !== -1;
+      });
+      if (!hasPriceOnPage) return;
+
+      var sel = '[data-shopify="payment-button"], shopify-payment-button, .shopify-payment-button, #dynamic-checkout-cart, .dynamic-checkout__button, [data-dynamic-checkout]';
+      function hide() {
+        var els = d.querySelectorAll(sel);
+        for (var i = 0; i < els.length; i++) els[i].style.display = 'none';
+      }
+      hide();
+      // Also hide after DOM mutations (some themes render these async)
+      new MutationObserver(hide).observe(d.body || d.documentElement, { childList: true, subtree: true });
+    }
+
+    /*
      * Intercept "Buy Now" on PRICE experiment product pages.
      * Dynamic checkout buttons bypass the cart, so spt_asgn never gets set.
      * We intercept checkout form submissions, add the item to cart first,
@@ -604,6 +633,7 @@
       applyCartPriceDisplay();
       watchCartUpdates();
       syncCartAttr();
+      hideExpressCheckout();
       interceptBuyNow();
       sendPageView();
       confirmAssign();
