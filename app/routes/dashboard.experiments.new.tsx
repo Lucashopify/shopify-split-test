@@ -1,6 +1,6 @@
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { useActionData, useLoaderData, useNavigate, useSubmit } from "react-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Select } from "../components/Select";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -150,8 +150,30 @@ export default function NewExperiment() {
   const [variantViewName, setVariantViewName] = useState("");
   const [templateType, setTemplateType] = useState("product");
   const [targetProductHandle, setTargetProductHandle] = useState("");
+  const [targetProductTitle, setTargetProductTitle] = useState("");
+  const [productQuery, setProductQuery] = useState("");
+  const [productResults, setProductResults] = useState<Array<{ id: string; title: string; handle: string; imageUrl: string | null; price: string }>>([]);
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const productSearchRef = useRef<HTMLDivElement>(null);
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
   const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
+
+  useEffect(() => {
+    if (!productSearchOpen) return;
+    const q = productQuery.trim();
+    const url = `/api/products/search?q=${encodeURIComponent(q)}`;
+    fetch(url).then((r) => r.json()).then((d) => setProductResults(d.products ?? [])).catch(() => {});
+  }, [productQuery, productSearchOpen]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (productSearchRef.current && !productSearchRef.current.contains(e.target as Node)) {
+        setProductSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   const variantThemeOptions = [
     { label: "— Select a theme —", value: "" },
@@ -317,16 +339,49 @@ export default function NewExperiment() {
 
         {type === "PRICE" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div>
-              <label style={label}>Product handle</label>
-              <input
-                style={input}
-                value={targetProductHandle}
-                onChange={(e) => setTargetProductHandle(e.target.value)}
-                placeholder="e.g. the-collection-snowboard-hydrogen"
-                autoComplete="off"
-              />
-              <p style={helpText}>The URL slug for the product you want to price test. Found in your Shopify admin under Products → the product URL.</p>
+            <div ref={productSearchRef} style={{ position: "relative" }}>
+              <label style={label}>Product</label>
+              {targetProductHandle ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6, background: "#fff" }}>
+                  <span style={{ fontSize: "0.875rem", color: "#111" }}>{targetProductTitle}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setTargetProductHandle(""); setTargetProductTitle(""); setProductQuery(""); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "0.875rem", padding: 0 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <input
+                  style={input}
+                  value={productQuery}
+                  onChange={(e) => { setProductQuery(e.target.value); setProductSearchOpen(true); }}
+                  onFocus={() => setProductSearchOpen(true)}
+                  placeholder="Search products..."
+                  autoComplete="off"
+                />
+              )}
+              {productSearchOpen && !targetProductHandle && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.08)", maxHeight: 240, overflowY: "auto", marginTop: 2 }}>
+                  {productResults.length === 0 ? (
+                    <div style={{ padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "#aaa" }}>No products found</div>
+                  ) : productResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setTargetProductHandle(p.handle); setTargetProductTitle(p.title); setProductSearchOpen(false); }}
+                      style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: "100%", padding: "0.625rem 0.75rem", background: "none", border: "none", borderBottom: "1px solid #f3f3f3", cursor: "pointer", textAlign: "left" }}
+                    >
+                      {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
+                      <div>
+                        <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500 }}>{p.title}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#aaa" }}>{p.handle} · {p.price}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8125rem", color: "#166534" }}>
               The control variant uses the original price. Configure the price adjustment for {variantName || "Variant B"} below.

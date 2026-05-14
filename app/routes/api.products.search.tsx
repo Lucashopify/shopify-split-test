@@ -12,6 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         nodes {
           id
           title
+          handle
           featuredImage { url }
           variants(first: 1) {
             nodes { price }
@@ -27,11 +28,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     (p: {
       id: string;
       title: string;
+      handle: string;
       featuredImage: { url: string } | null;
       variants: { nodes: Array<{ price: string }> };
     }) => ({
       id: p.id,
       title: p.title,
+      handle: p.handle,
       imageUrl: p.featuredImage?.url ?? null,
       price: p.variants.nodes[0]?.price ?? "0.00",
     }),
