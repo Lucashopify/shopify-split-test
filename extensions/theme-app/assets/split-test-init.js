@@ -407,25 +407,19 @@
         // Parse cents from original text (strip non-numeric except dot/comma)
         var raw = el.dataset.sptOrig.replace(/[^0-9.,]/g, '').replace(',', '.');
         var originalCents = Math.round(parseFloat(raw) * 100);
-        console.log('[SPT] el[' + i + '] orig:', JSON.stringify(el.dataset.sptOrig), 'raw:', raw, 'cents:', originalCents);
-        if (!originalCents || isNaN(originalCents)) { console.log('[SPT] el[' + i + '] SKIPPED'); continue; }
+        if (!originalCents || isNaN(originalCents)) continue;
         var newCents = calcAdjustedCents(originalCents, adjType, adjValue);
-        var fmt = formatMoney(newCents);
-        console.log('[SPT] el[' + i + '] newCents:', newCents, 'formatted:', fmt);
-        el.textContent = fmt;
+        el.textContent = formatMoney(newCents);
       }
     }
 
     function applyPriceDisplay() {
       var canonicalPath = stripMarket(location.pathname);
-      console.log('[SPT] applyPriceDisplay — exps:', exps.length, 'path:', canonicalPath);
 
       for (var pi = 0; pi < exps.length; pi++) {
         var ep = exps[pi];
-        console.log('[SPT] exp[' + pi + '] type:', ep.type, 'id:', ep.id, 'status:', ep.status);
         if (ep.type !== 'PRICE') continue;
         var pvId = asgn[ep.id];
-        console.log('[SPT] pvId:', pvId, 'asgn:', JSON.stringify(asgn));
         if (!pvId) continue;
 
         // Find assigned variant config
@@ -433,21 +427,16 @@
         for (var pj = 0; pj < (ep.variants || []).length; pj++) {
           if (ep.variants[pj].id === pvId) { pv = ep.variants[pj]; break; }
         }
-        console.log('[SPT] pv:', JSON.stringify(pv));
-        console.log('[SPT] skip?', !pv, pv && pv.isControl, pv && !pv.priceAdjType, pv && pv.priceAdjValue == null);
         if (!pv || pv.isControl || !pv.priceAdjType || pv.priceAdjValue == null) continue;
 
         var handle = ep.targetProductHandle;
-        console.log('[SPT] handle:', handle);
         if (!handle) continue;
 
         // PDP — only apply on the matching product page
         var onPdp = /^\/products\//.test(canonicalPath) &&
                     canonicalPath.indexOf(handle) !== -1;
-        console.log('[SPT] onPdp:', onPdp, 'canonicalPath:', canonicalPath);
         if (onPdp) {
           var pdpEls = d.querySelectorAll(PRICE_SELECTORS);
-          console.log('[SPT] pdpEls found:', pdpEls.length);
           applyPriceToElements(pdpEls, pv.priceAdjType, pv.priceAdjValue);
         }
 
