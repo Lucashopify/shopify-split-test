@@ -340,9 +340,10 @@
     }
 
     function applyPriceAdj() {
-      // Skip on cart/checkout — the discount code already applies the real price there.
+      // Skip on checkout only — cart DOM manipulation is fine since Cart Transform
+      // (not a discount code) handles the actual checkout price.
       var canonPath = stripMarket(location.pathname);
-      if (/^\/(cart|checkout)/.test(canonPath)) return;
+      if (/^\/checkout/.test(canonPath)) return;
 
       var adjType = html.getAttribute('data-spt-price-adj-type');
       var adjValue = parseFloat(html.getAttribute('data-spt-price-adj-value') || '');
@@ -441,23 +442,21 @@
       var links = d.querySelectorAll(linkSel);
       if (!links.length) return;
 
-      // Deduplicate card containers: walk up from each link until we find a
-      // natural card boundary (li, article) that also contains a price element.
-      // Requiring a price element prevents nav/footer links from matching.
+      // Walk up from each matching product link to find its item container —
+      // the closest ancestor that contains a price element.
+      // Works for product cards (li, article), cart rows (tr), and cart drawers (div).
       var seenContainers = new WeakSet();
       for (var li = 0; li < links.length; li++) {
         var cur = links[li].parentElement;
         var container = null;
-        while (cur && cur !== d.body) {
-          var tag = (cur.tagName || '').toUpperCase();
-          if (tag === 'LI' || tag === 'ARTICLE') {
-            // Only treat as product card if it has a price element inside
-            var hasPriceEl = false;
-            for (var pi = 0; pi < priceSels.length; pi++) {
-              if (cur.querySelector(priceSels[pi])) { hasPriceEl = true; break; }
-            }
-            if (hasPriceEl) { container = cur; break; }
+        var depth = 0;
+        while (cur && cur !== d.body && depth < 12) {
+          depth++;
+          var hasPriceEl = false;
+          for (var pi = 0; pi < priceSels.length; pi++) {
+            if (cur.querySelector(priceSels[pi])) { hasPriceEl = true; break; }
           }
+          if (hasPriceEl) { container = cur; break; }
           cur = cur.parentElement;
         }
         if (container && !seenContainers.has(container)) {
