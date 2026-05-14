@@ -6,20 +6,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const result: Record<string, unknown> = {};
 
-  // 0. Set blockOnFailure: true so crashes are visible
+  // 0. Recreate cart transform with blockOnFailure: true
   try {
-    const existing = await admin.graphql(`{ cartTransforms(first: 1) { nodes { id } } }`);
-    const existingJson = await existing.json() as { data?: { cartTransforms?: { nodes: Array<{ id: string }> } } };
-    const transformId = existingJson?.data?.cartTransforms?.nodes?.[0]?.id;
-    if (transformId) {
-      const updateR = await admin.graphql(
-        `mutation { cartTransformUpdate(id: "${transformId}", blockOnFailure: true) { cartTransform { id blockOnFailure } userErrors { field message } } }`
+    const existing = await admin.graphql(`{ cartTransforms(first: 1) { nodes { id functionId } } }`);
+    const existingJson = await existing.json() as { data?: { cartTransforms?: { nodes: Array<{ id: string; functionId: string }> } } };
+    const transform = existingJson?.data?.cartTransforms?.nodes?.[0];
+    if (transform) {
+      const deleteR = await admin.graphql(
+        `mutation { cartTransformDelete(id: "${transform.id}") { deletedId userErrors { field message } } }`
       );
-      const updateJ = await updateR.json();
-      result.blockOnFailureUpdate = updateJ;
+      result.deleteResult = await deleteR.json();
+      const createR = await admin.graphql(
+        `mutation { cartTransformCreate(functionId: "${transform.functionId}", blockOnFailure: true) { cartTransform { id blockOnFailure } userErrors { field message } } }`
+      );
+      result.createWithBlockResult = await createR.json();
     }
   } catch (e) {
-    result.blockOnFailureError = String(e);
+    result.recreateError = String(e);
   }
 
   // 1. List shopify functions
