@@ -8,24 +8,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const result: Record<string, unknown> = {};
 
-  // 1. Show all PRICE experiments and their status
-  const experiments = await prisma.experiment.findMany({
-    where: { shopId },
+  // 0. Show shop record
+  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
+  result.shopRecord = { id: shop?.id, myshopifyDomain: shop?.myshopifyDomain };
+
+  // 1. Show all experiments across ALL shops (to find where they went)
+  const allShopExperiments = await prisma.experiment.findMany({
     include: { variants: true },
+    take: 20,
   });
-  result.allExperiments = experiments.map((e) => ({
+  result.allExperiments = allShopExperiments.map((e) => ({
     id: e.id,
+    shopId: e.shopId,
     name: e.name,
     status: e.status,
     type: e.type,
-    targetProductId: e.targetProductId,
-    targetProductHandle: e.targetProductHandle,
-    variants: e.variants.map((v) => ({
-      id: v.id,
-      isControl: v.isControl,
-      priceAdjType: v.priceAdjType,
-      priceAdjValue: v.priceAdjValue,
-    })),
   }));
 
   // 2. Force re-sync
