@@ -37,7 +37,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     result.functionGid = functionGid;
     try {
       const createResp = await admin.graphql(
-        `mutation CartTransformCreate($functionId: ID!) {
+        `mutation CartTransformCreate($functionId: String!) {
           cartTransformCreate(functionId: $functionId) {
             cartTransform { id functionId }
             userErrors { field message code }

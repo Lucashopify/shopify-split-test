@@ -47,7 +47,7 @@ export async function ensureCartTransform(admin: AdminClient): Promise<string | 
   const functionGid = fn.id.startsWith('gid://') ? fn.id : `gid://shopify/ShopifyFunction/${fn.id}`;
   console.log("[cartTransform] creating with functionId:", functionGid);
   const createResp = await admin.graphql(
-    `mutation CartTransformCreate($functionId: ID!) {
+    `mutation CartTransformCreate($functionId: String!) {
       cartTransformCreate(functionId: $functionId) {
         cartTransform { id }
         userErrors { field message code }
