@@ -12,6 +12,9 @@ query RunInput {
           currencyCode
         }
       }
+      attribute(key: "spt_asgn") {
+        value
+      }
       merchandise {
         ... on ProductVariant {
           id

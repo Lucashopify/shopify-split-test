@@ -360,11 +360,11 @@
     }
 
     /*
-     * Intercept "Buy it now" button on PRICE experiment product pages.
-     * The button (name="checkout") bypasses the cart, so spt_asgn never gets set.
-     * We intercept the click, add the item to cart, write spt_asgn, then redirect.
+     * Inject spt_asgn as a hidden line property into product forms on PRICE
+     * experiment PDPs. This travels with the item on both Add to Cart and
+     * Buy it Now, regardless of how Shopify creates the checkout.
      */
-    function interceptBuyNow() {
+    function injectAsgnLineProperty() {
       var canonicalPath = stripMarket(location.pathname);
       if (!/^\/products\//.test(canonicalPath)) return;
 
@@ -374,60 +374,26 @@
       });
       if (!hasPriceOnPage) return;
 
-      function doCheckout(form) {
-        var variantInput = form.querySelector('[name="id"]');
-        if (!variantInput) return false;
+      var asgnJson = JSON.stringify(asgn);
+      var INPUT_NAME = 'properties[spt_asgn]';
 
-        var variantId = variantInput.value;
-        var qtyInput = form.querySelector('[name="quantity"]');
-        var qty = qtyInput ? Number(qtyInput.value) || 1 : 1;
-        var root = marketRoot().replace(/\/$/, '');
-
-        var props = {};
-        var propInputs = form.querySelectorAll('[name^="properties["]');
-        for (var pi = 0; pi < propInputs.length; pi++) {
-          var propName = propInputs[pi].name.replace(/^properties\[/, '').replace(/\]$/, '');
-          props[propName] = propInputs[pi].value;
+      function inject() {
+        var forms = d.querySelectorAll('form[action*="/cart/add"], form[action="/cart/add"]');
+        for (var i = 0; i < forms.length; i++) {
+          var form = forms[i];
+          var existing = form.querySelector('[name="' + INPUT_NAME + '"]');
+          if (existing) { existing.value = asgnJson; continue; }
+          var inp = d.createElement('input');
+          inp.type = 'hidden';
+          inp.name = INPUT_NAME;
+          inp.value = asgnJson;
+          form.appendChild(inp);
         }
-
-        fetch(root + '/cart/add.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: variantId, quantity: qty, properties: props }),
-        })
-        .then(function() {
-          return fetch(root + '/cart/update.js', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ attributes: { spt_asgn: JSON.stringify(asgn) } }),
-          });
-        })
-        .then(function() { location.href = withMarket('/checkout'); })
-        .catch(function() { location.href = withMarket('/checkout'); });
-        return true;
       }
 
-      // Intercept clicks on any element with name="checkout" inside a product form
-      d.addEventListener('click', function(ev) {
-        var t = ev.target;
-        if (!t) return;
-        var btn = t.closest ? t.closest('[name="checkout"]') : (t.name === 'checkout' ? t : null);
-        if (!btn) return;
-        var form = btn.form || btn.closest('form');
-        if (!form || !form.querySelector('[name="id"]')) return;
-        if (!doCheckout(form)) return;
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-      }, true);
-
-      // Also intercept form submit as fallback
-      d.addEventListener('submit', function(ev) {
-        var form = ev.target;
-        if (!form || !form.querySelector('[name="checkout"]') || !form.querySelector('[name="id"]')) return;
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        doCheckout(form);
-      }, true);
+      inject();
+      // Re-inject if theme JS re-renders the form
+      new MutationObserver(inject).observe(d.body || d.documentElement, { childList: true, subtree: true });
     }
 
     /* ── Price display ───────────────────────────────────────────────── */
@@ -612,7 +578,7 @@
       applyCartPriceDisplay();
       watchCartUpdates();
       syncCartAttr();
-      interceptBuyNow();
+      injectAsgnLineProperty();
       sendPageView();
       confirmAssign();
       trackAtc();

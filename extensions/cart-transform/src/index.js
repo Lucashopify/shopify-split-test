@@ -3,25 +3,25 @@
  *
  * Uses update operation to override price at checkout without discount label.
  *
- * Reads:
- *   cart.attribute("_spt_asgn")  → { experimentId: variantId }
- *   cartTransform.metafield      → { experiments: [...] }
+ * Reads assignment from (in order of priority):
+ *   1. cart.attribute("spt_asgn")       — set by syncCartAttr() on page load
+ *   2. line.attribute("spt_asgn")        — set via hidden form input (Buy it Now flow)
+ *   cartTransform.metafield             → { experiments: [...] }
  */
 
 var NO_OP = { operations: [] };
 
 export function run(input) {
   var cart = input && input.cart;
-  var asgnAttr = cart && cart.attribute && cart.attribute.value;
-  if (!asgnAttr) return NO_OP;
+  var cartAsgnStr = cart && cart.attribute && cart.attribute.value;
 
   var cartTransform = input && input.cartTransform;
   var configStr = cartTransform && cartTransform.metafield && cartTransform.metafield.value;
   if (!configStr) return NO_OP;
 
-  var asgn, config;
+  var cartAsgn, config;
   try {
-    asgn = JSON.parse(asgnAttr);
+    cartAsgn = cartAsgnStr ? JSON.parse(cartAsgnStr) : null;
     config = JSON.parse(configStr);
   } catch (_) {
     return NO_OP;
@@ -43,6 +43,14 @@ export function run(input) {
     var apq = line.cost && line.cost.amountPerQuantity;
     var originalAmount = parseFloat(apq && apq.amount);
     if (isNaN(originalAmount) || originalAmount <= 0) continue;
+
+    // Resolve assignment: cart-level first, then line-level property (Buy it Now)
+    var lineAsgnStr = line.attribute && line.attribute.value;
+    var asgn = cartAsgn;
+    if (!asgn && lineAsgnStr) {
+      try { asgn = JSON.parse(lineAsgnStr); } catch (_) {}
+    }
+    if (!asgn) continue;
 
     for (var j = 0; j < experiments.length; j++) {
       var exp = experiments[j];
