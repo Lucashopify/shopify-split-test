@@ -80,7 +80,7 @@ function run(input) {
       if (newAmount < 0) newAmount = 0;
 
       operations.push({
-        expand: {
+        lineExpand: {
           cartLineId: line.id,
           expandedCartItems: [{
             merchandiseId: variantId,
