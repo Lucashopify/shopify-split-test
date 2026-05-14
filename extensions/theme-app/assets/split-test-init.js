@@ -407,9 +407,12 @@
         // Parse cents from original text (strip non-numeric except dot/comma)
         var raw = el.dataset.sptOrig.replace(/[^0-9.,]/g, '').replace(',', '.');
         var originalCents = Math.round(parseFloat(raw) * 100);
-        if (!originalCents || isNaN(originalCents)) continue;
+        console.log('[SPT] el[' + i + '] orig:', JSON.stringify(el.dataset.sptOrig), 'raw:', raw, 'cents:', originalCents);
+        if (!originalCents || isNaN(originalCents)) { console.log('[SPT] el[' + i + '] SKIPPED'); continue; }
         var newCents = calcAdjustedCents(originalCents, adjType, adjValue);
-        el.textContent = formatMoney(newCents);
+        var fmt = formatMoney(newCents);
+        console.log('[SPT] el[' + i + '] newCents:', newCents, 'formatted:', fmt);
+        el.textContent = fmt;
       }
     }
 
