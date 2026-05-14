@@ -104,6 +104,7 @@ export async function requireDashboardSession(request: Request) {
     "write_themes",
     "read_orders",
     "write_discounts",
+    "write_cart_transforms",
   ];
   const grantedScopes = (dbShop.scopes ?? "").split(",").map((s) => s.trim());
   const missingScopes = REQUIRED_SCOPES.filter((s) => !grantedScopes.includes(s));
