@@ -1,6 +1,6 @@
 query RunInput {
   cart {
-    attribute(key: "_spt_asgn") {
+    attribute(key: "spt_asgn") {
       value
     }
     lines {

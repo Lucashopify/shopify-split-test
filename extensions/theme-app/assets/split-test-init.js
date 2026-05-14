@@ -355,7 +355,7 @@
       fetch(root + '/cart/update.js', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attributes: { _spt_asgn: JSON.stringify(asgn) } }),
+        body: JSON.stringify({ attributes: { spt_asgn: JSON.stringify(asgn) } }),
       }).catch(function() {});
     }
 

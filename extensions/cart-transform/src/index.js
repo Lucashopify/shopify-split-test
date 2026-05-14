@@ -1,24 +1,25 @@
 /**
  * Split Test — Cart Transform Function
  *
- * Uses lineUpdate to override the price of a cart line item without
- * showing a discount label or strikethrough.
+ * Uses update operation to override price at checkout without discount label.
  *
  * Reads:
  *   cart.attribute("_spt_asgn")  → { experimentId: variantId }
  *   cartTransform.metafield      → { experiments: [...] }
  */
 
-const NO_OP = { operations: [] };
+var NO_OP = { operations: [] };
 
 export function run(input) {
-  const asgnAttr = input.cart?.attribute?.value;
+  var cart = input && input.cart;
+  var asgnAttr = cart && cart.attribute && cart.attribute.value;
   if (!asgnAttr) return NO_OP;
 
-  const configStr = input.cartTransform?.metafield?.value;
+  var cartTransform = input && input.cartTransform;
+  var configStr = cartTransform && cartTransform.metafield && cartTransform.metafield.value;
   if (!configStr) return NO_OP;
 
-  let asgn, config;
+  var asgn, config;
   try {
     asgn = JSON.parse(asgnAttr);
     config = JSON.parse(configStr);
@@ -26,54 +27,63 @@ export function run(input) {
     return NO_OP;
   }
 
-  const experiments = config.experiments;
+  var experiments = config.experiments;
   if (!Array.isArray(experiments) || !experiments.length) return NO_OP;
 
-  const operations = [];
-  const lines = input.cart?.lines ?? [];
+  var operations = [];
+  var lines = (cart && cart.lines) || [];
 
-  for (const line of lines) {
-    const merch = line.merchandise;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var merch = line.merchandise;
     if (!merch || !merch.product) continue;
 
-    const productId = merch.product?.id;
-    const productHandle = merch.product?.handle;
-    const originalAmount = parseFloat(line.cost?.amountPerQuantity?.amount);
+    var productId = merch.product.id;
+    var productHandle = merch.product.handle;
+    var apq = line.cost && line.cost.amountPerQuantity;
+    var originalAmount = parseFloat(apq && apq.amount);
     if (isNaN(originalAmount) || originalAmount <= 0) continue;
 
-    for (const exp of experiments) {
-      const numericId = productId?.split("/").pop();
-      const matched =
-        exp.targetProductId === productId ||
-        exp.targetProductId === numericId ||
-        (exp.targetProductHandle && exp.targetProductHandle === productHandle);
+    for (var j = 0; j < experiments.length; j++) {
+      var exp = experiments[j];
+      var numericId = productId ? productId.split('/').pop() : null;
+      var matched = exp.targetProductId === productId ||
+                    exp.targetProductId === numericId ||
+                    (exp.targetProductHandle && exp.targetProductHandle === productHandle);
       if (!matched) continue;
 
-      const assignedVariantId = asgn[exp.experimentId];
+      var assignedVariantId = asgn[exp.experimentId];
       if (!assignedVariantId) continue;
 
-      const variantConfig = (exp.variants ?? []).find(
-        (v) => v.id === assignedVariantId,
-      );
+      var variantConfig = null;
+      var variants = exp.variants || [];
+      for (var k = 0; k < variants.length; k++) {
+        if (variants[k].id === assignedVariantId) {
+          variantConfig = variants[k];
+          break;
+        }
+      }
       if (!variantConfig || variantConfig.isControl) continue;
 
-      const adjType = variantConfig.priceAdjType;
-      const adjValue = variantConfig.priceAdjValue;
+      var adjType = variantConfig.priceAdjType;
+      var adjValue = variantConfig.priceAdjValue;
       if (!adjType || adjValue == null || adjValue === 0) continue;
 
-      let newAmount =
-        adjType === "percent"
-          ? originalAmount * (1 + adjValue / 100)
-          : originalAmount + adjValue;
+      var newAmount = adjType === 'percent'
+        ? originalAmount * (1 + adjValue / 100)
+        : originalAmount + adjValue;
       if (newAmount < 0) newAmount = 0;
 
+      var rounded = Math.round(newAmount * 100) / 100;
+      var str = String(Math.floor(rounded)) + '.' + (rounded % 1 < 0.1 ? '0' : '') + String(Math.round((rounded % 1) * 100));
+
       operations.push({
-        lineUpdate: {
+        update: {
           cartLineId: line.id,
           price: {
             adjustment: {
               fixedPricePerUnit: {
-                amount: newAmount.toFixed(2),
+                amount: str,
               },
             },
           },
@@ -83,5 +93,5 @@ export function run(input) {
     }
   }
 
-  return { operations };
+  return { operations: operations };
 }

@@ -244,7 +244,7 @@ async function handleOrderCreate(
   const visitorToken = attrs._spt_vid ?? null;
   let assignments: Record<string, string> = {};
   try {
-    assignments = attrs._spt_asgn ? JSON.parse(attrs._spt_asgn) : {};
+    assignments = attrs.spt_asgn ? JSON.parse(attrs.spt_asgn) : {};
   } catch {}
 
   console.log(`[order] visitorToken=${visitorToken} assignments=${JSON.stringify(assignments)}`);
