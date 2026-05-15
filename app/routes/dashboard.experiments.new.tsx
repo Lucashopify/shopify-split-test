@@ -27,7 +27,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ...t,
     updatedLabel: new Date(t.updatedAt).toISOString().slice(0, 10),
   }));
-  return { themes: themesWithDate, templateFiles, segments, planLimits, currency, isShopifyPlus };
+
+  // Detect active theme and whether our price selectors cover it out of the box
+  const activeTheme = themesWithDate.find((t) => t.role === "MAIN") ?? themesWithDate[0] ?? null;
+  const KNOWN_THEMES = [
+    "dawn", "sense", "craft", "crave", "colorblock", "refresh", "studio",
+    "origin", "spotlight", "ride", "expression", "habitat", "presence",
+    "publisher", "symmetry", "debut", "brooklyn", "minimal", "simple",
+    "narrative", "venture", "supply", "impulse",
+  ];
+  const activeThemeName = activeTheme?.name ?? null;
+  const themeSupported = activeThemeName
+    ? KNOWN_THEMES.some((t) => activeThemeName.toLowerCase().includes(t))
+    : false;
+
+  return { themes: themesWithDate, templateFiles, segments, planLimits, currency, isShopifyPlus, activeThemeName, themeSupported };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -132,7 +146,7 @@ const helpText: React.CSSProperties = {
 };
 
 export default function NewExperiment() {
-  const { themes, templateFiles, segments, planLimits, currency, isShopifyPlus } = useLoaderData<typeof loader>();
+  const { themes, templateFiles, segments, planLimits, currency, isShopifyPlus, activeThemeName, themeSupported } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigate = useNavigate();
   const submit = useSubmit();
@@ -338,6 +352,40 @@ export default function NewExperiment() {
 
         {type === "PRICE" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+
+            {/* Theme compatibility banner */}
+            {themeSupported ? (
+              <div style={{ padding: "0.75rem 1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, fontSize: "0.8125rem", color: "#166534", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>✓</span>
+                <span><strong>{activeThemeName}</strong> is fully supported — prices will update automatically across your store. No theme changes needed.</span>
+              </div>
+            ) : (
+              <div style={{ padding: "1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.8125rem", color: "#92400e", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ fontWeight: 600 }}>
+                  {activeThemeName ? `"${activeThemeName}" is a custom theme — one-time setup required` : "One-time theme setup required"}
+                </div>
+                <p style={{ margin: 0, lineHeight: 1.6 }}>
+                  To make sure the test price shows correctly on your product page and cart, you need to add a small marker to your theme. You only do this once — it works for all future price tests.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div style={{ fontWeight: 500 }}>Step 1 — Open your theme code</div>
+                  <p style={{ margin: 0, color: "#78350f" }}>In Shopify Admin, go to <strong>Online Store → Themes → Edit code</strong>. Look for a file called <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>snippets/price.liquid</code> or search for where your product price is displayed (usually in <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>sections/main-product.liquid</code>).</p>
+
+                  <div style={{ fontWeight: 500, marginTop: "0.25rem" }}>Step 2 — Mark your price element</div>
+                  <p style={{ margin: 0, color: "#78350f" }}>Find the HTML element that shows the product price and add <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-price</code> to it. Example:</p>
+                  <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-price>{{ product.price | money }}</span>`}</pre>
+
+                  <div style={{ fontWeight: 500, marginTop: "0.25rem" }}>Step 3 — Mark your cart price element</div>
+                  <p style={{ margin: 0, color: "#78350f" }}>In your cart template (usually <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>snippets/cart-line-item.liquid</code>), add <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-cart-price</code> to the line item price element:</p>
+                  <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-cart-price>{{ item.final_price | money }}</span>`}</pre>
+
+                  <p style={{ margin: "0.25rem 0 0", color: "#a16207", fontSize: "0.75rem" }}>
+                    Not sure where to find these files? <a href="mailto:support@yourapp.com" style={{ color: "#a16207" }}>Contact us</a> and we'll set it up for you.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div ref={productSearchRef} style={{ position: "relative" }}>
               <label style={label}>Product</label>
               {targetProductHandle ? (

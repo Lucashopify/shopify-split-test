@@ -375,7 +375,7 @@
       if (!hasPriceOnPage) return;
 
       var asgnJson = JSON.stringify(asgn);
-      var INPUT_NAME = 'properties[spt_asgn]';
+      var INPUT_NAME = 'properties[_spt_asgn]';
 
       function inject() {
         var forms = d.querySelectorAll('form[action*="/cart/add"], form[action="/cart/add"]');
@@ -411,6 +411,7 @@
     ].join(',');
 
     var CART_PRICE_SELECTORS = [
+      '[data-spt-cart-price]',                // custom themes — merchant-added attribute
       '[data-spt-price]',
       '.price--end',                          // Dawn cart drawer + cart page
       '.cart-item__price-wrapper .price',     // Dawn
@@ -438,14 +439,26 @@
                  : '$' + amount;
     }
 
+    function parseCentsFromText(text) {
+      var s = text.replace(/[^0-9.,]/g, '');
+      if (!s) return 0;
+      var lastComma = s.lastIndexOf(',');
+      var lastDot = s.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        // European format: "2.103,96" — comma is decimal separator
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        // US/UK format: "2,103.96" — comma is thousands separator
+        s = s.replace(/,/g, '');
+      }
+      return Math.round(parseFloat(s) * 100);
+    }
+
     function applyPriceToElements(els, adjType, adjValue) {
       for (var i = 0; i < els.length; i++) {
         var el = els[i];
-        // Store original text once
         if (!el.dataset.sptOrig) el.dataset.sptOrig = el.textContent.trim();
-        // Parse cents from original text (strip non-numeric except dot/comma)
-        var raw = el.dataset.sptOrig.replace(/[^0-9.,]/g, '').replace(',', '.');
-        var originalCents = Math.round(parseFloat(raw) * 100);
+        var originalCents = parseCentsFromText(el.dataset.sptOrig);
         if (!originalCents || isNaN(originalCents)) continue;
         var newCents = calcAdjustedCents(originalCents, adjType, adjValue);
         el.textContent = formatMoney(newCents);
@@ -489,6 +502,19 @@
         }
 
       }
+    }
+
+    // Inject a persistent CSS rule that hides the compare-at price wrapper for
+    // cart items we've tagged with data-spt-price-applied. CSS survives re-renders
+    // (unlike textContent changes that get wiped when Dawn re-renders cart HTML).
+    function injectCartPriceCss() {
+      if (d.getElementById('spt-cart-price-css')) return;
+      var style = d.createElement('style');
+      style.id = 'spt-cart-price-css';
+      // Hide the strikethrough original price that Dawn adds when
+      // original_line_price != final_line_price (i.e. when cart transform runs)
+      style.textContent = '[data-spt-price-applied] .price--on-sale .price__regular{display:none!important}';
+      (d.head || d.documentElement).appendChild(style);
     }
 
     // Fetch cart.js and update prices for matching line items
@@ -545,9 +571,19 @@
               }
 
               if (!cartItemEl) continue;
-              var priceEls = cartItemEl.querySelectorAll(CART_PRICE_SELECTORS);
-              for (var i = 0; i < priceEls.length; i++) {
-                priceEls[i].textContent = formatted;
+
+              // Mark element so CSS rule can target it persistently across re-renders
+              cartItemEl.setAttribute('data-spt-price-applied', '1');
+              injectCartPriceCss();
+
+              // Update the sale price text (Dawn shows .price-item--sale when cart
+              // transform applies a discount; fall back to .price-item--regular otherwise)
+              var saleEl = cartItemEl.querySelector('.price-item--sale');
+              if (saleEl) {
+                saleEl.textContent = formatted;
+              } else {
+                var regEl = cartItemEl.querySelector('.price-item--regular');
+                if (regEl) regEl.textContent = formatted;
               }
             }
           }
@@ -562,10 +598,10 @@
 
       function onCartUpdate() { setTimeout(applyCartPriceDisplay, 50); }
 
-      // Dawn: observe the cart-drawer custom element for childList changes
-      var cartRoot = d.querySelector('cart-drawer, #cart-drawer, #CartDrawer, .cart-drawer');
-      if (cartRoot) {
-        new MutationObserver(onCartUpdate).observe(cartRoot, { childList: true, subtree: true });
+      // Dawn: observe both the cart drawer and cart page custom elements
+      var watchRoots = d.querySelectorAll('cart-drawer, #cart-drawer, #CartDrawer, .cart-drawer, cart-items, #cart-items');
+      for (var wi = 0; wi < watchRoots.length; wi++) {
+        new MutationObserver(onCartUpdate).observe(watchRoots[wi], { childList: true, subtree: true });
       }
       d.addEventListener('cart:updated', onCartUpdate);
       d.addEventListener('cart:refresh', onCartUpdate);
