@@ -137,25 +137,33 @@ async function rollupExperiment(exp: Experiment) {
 
   const variantMetrics: VM[] = [];
 
-  // For PRICE experiments, scope PAGE_VIEW and ADD_TO_CART to the tested product URL.
-  // Sessions = visitor saw the price (on PDP). ATC = added that specific product.
-  // INITIATE_CHECKOUT is not filtered — visitors check out from /cart, not the PDP.
-  const productUrlFilter = exp.type === "PRICE" && exp.targetProductHandle
-    ? { url: { contains: `/products/${exp.targetProductHandle}` } }
-    : {};
+  // Build a per-variant URL filter for scoping sessions and ATC:
+  // - PRICE experiments: scope to the tested product's PDP
+  // - URL_REDIRECT experiments with a targetUrl: scope control to source URL, variant to destination URL
+  function getPageFilter(variant: typeof variants[0]) {
+    if (exp.type === "PRICE" && exp.targetProductHandle) {
+      return { url: { contains: `/products/${exp.targetProductHandle}` } };
+    }
+    if (exp.type === "URL_REDIRECT" && exp.targetUrl) {
+      const url = variant.isControl ? exp.targetUrl : (variant.redirectUrl ?? null);
+      return url ? { url: { contains: url } } : {};
+    }
+    return {};
+  }
 
   for (const variant of variants) {
+    const pageFilter = getPageFilter(variant);
     const [sessions, uniqueVisitorRows, addToCartCount, initiateCheckoutCount, conversionCount, revenueAgg] =
       await Promise.all([
         prisma.event.count({
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageFilter },
         }),
         prisma.event.groupBy({
           by: ["visitorId"],
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageFilter },
         }),
         prisma.event.count({
-          where: { experimentId, variantId: variant.id, type: "ADD_TO_CART", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
+          where: { experimentId, variantId: variant.id, type: "ADD_TO_CART", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageFilter },
         }),
         prisma.event.count({
           where: { experimentId, variantId: variant.id, type: "INITIATE_CHECKOUT", occurredAt: { gte: windowStart, lt: windowEnd } },

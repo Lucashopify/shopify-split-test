@@ -158,6 +158,93 @@ export async function getThemeTemplateFiles(
 }
 
 /**
+ * Duplicate a product and apply a price adjustment to all variants.
+ * Used for non-Plus price tests — the duplicate is the "test price" product
+ * that variant B visitors are redirected to.
+ *
+ * Returns the duplicate's Shopify GID and URL handle.
+ */
+export async function createPriceTestProduct(
+  admin: { graphql: (query: string, options?: { variables: Record<string, unknown> }) => Promise<Response> },
+  originalProductGid: string,
+  originalProductTitle: string,
+  priceAdjType: "percent" | "fixed",
+  priceAdjValue: number,
+): Promise<{ productGid: string; handle: string }> {
+  // 1. Duplicate the product (ACTIVE so it's reachable via URL)
+  const dupResp = await admin.graphql(
+    `mutation DupProduct($productId: ID!, $newTitle: String!) {
+      productDuplicate(productId: $productId, newTitle: $newTitle, newStatus: ACTIVE, includeImages: true) {
+        newProduct {
+          id
+          handle
+          variants(first: 100) {
+            nodes { id price }
+          }
+        }
+        userErrors { field message }
+      }
+    }`,
+    { variables: { productId: originalProductGid, newTitle: `[SPT] ${originalProductTitle}` } },
+  );
+
+  const { data: dupData } = await dupResp.json();
+  const errs = dupData?.productDuplicate?.userErrors ?? [];
+  if (errs.length) throw new Error(errs.map((e: { message: string }) => e.message).join(", "));
+
+  const newProduct = dupData.productDuplicate.newProduct as {
+    id: string;
+    handle: string;
+    variants: { nodes: Array<{ id: string; price: string }> };
+  };
+
+  // 2. Apply price adjustment to every variant on the duplicate
+  const updatedVariants = newProduct.variants.nodes.map((v) => {
+    const originalCents = Math.round(parseFloat(v.price) * 100);
+    const newCents = priceAdjType === "percent"
+      ? Math.max(0, Math.round(originalCents * (1 + priceAdjValue / 100)))
+      : Math.max(0, Math.round(originalCents + priceAdjValue * 100));
+    return { id: v.id, price: (newCents / 100).toFixed(2) };
+  });
+
+  const priceResp = await admin.graphql(
+    `mutation UpdatePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+        userErrors { field message }
+      }
+    }`,
+    { variables: { productId: newProduct.id, variants: updatedVariants } },
+  );
+
+  const { data: priceData } = await priceResp.json();
+  const priceErrs = priceData?.productVariantsBulkUpdate?.userErrors ?? [];
+  if (priceErrs.length) throw new Error(priceErrs.map((e: { message: string }) => e.message).join(", "));
+
+  return { productGid: newProduct.id, handle: newProduct.handle };
+}
+
+/**
+ * Delete a product by GID. Used to clean up duplicate price-test products
+ * when a non-Plus price experiment is completed or archived.
+ */
+export async function deleteProduct(
+  admin: { graphql: (query: string, options?: { variables: Record<string, unknown> }) => Promise<Response> },
+  productGid: string,
+): Promise<void> {
+  const resp = await admin.graphql(
+    `mutation DeleteProduct($id: ID!) {
+      productDelete(input: { id: $id }) {
+        userErrors { field message }
+      }
+    }`,
+    { variables: { id: productGid } },
+  );
+  const { data } = await resp.json();
+  const errs = data?.productDelete?.userErrors ?? [];
+  if (errs.length) throw new Error(errs.map((e: { message: string }) => e.message).join(", "));
+}
+
+/**
  * Get shop metadata needed at install time.
  */
 export async function getShopMetadata(admin: {

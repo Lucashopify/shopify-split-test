@@ -3,6 +3,7 @@ import { useState } from "react";
 import React from "react";
 import { Select } from "../components/Select";
 import { getPlanLimits } from "../lib/billing.server";
+import { deleteProduct } from "../lib/shopify/admin.server";
 import type { Prisma } from "@prisma/client";
 import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
@@ -242,6 +243,30 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         after: { status: newStatus } as Prisma.InputJsonValue,
       },
     });
+    // If this is a non-Plus price test (URL_REDIRECT with a duplicate product GID),
+    // delete the duplicate when the experiment is finished.
+    if (
+      (newStatus === "COMPLETED" || newStatus === "ARCHIVED") &&
+      exp.type === "URL_REDIRECT" &&
+      exp.targetProductId
+    ) {
+      try {
+        await deleteProduct(admin, exp.targetProductId);
+        await prisma.auditLog.create({
+          data: {
+            shopId,
+            experimentId: exp.id,
+            actor: "system",
+            action: "experiment.price_redirect.duplicate_deleted",
+            after: { productGid: exp.targetProductId } as Prisma.InputJsonValue,
+          },
+        });
+      } catch (err) {
+        // Don't fail the status change if cleanup fails — log and move on
+        console.error("[action] Failed to delete price test duplicate:", err);
+      }
+    }
+
     try {
       await syncConfigToMetafield(admin, shopId);
     } catch (err) {

@@ -124,6 +124,11 @@
       for (var m = 0; m < vs2.length; m++) { if (vs2[m].id === vId) { av = vs2[m]; break; } }
       if (!av || av.isControl) continue;
       if (eA.type === 'URL_REDIRECT' && av.redirectUrl) {
+        // If a source URL is configured, only redirect from that URL
+        if (eA.targetUrl) {
+          var currPath = stripMarket(location.pathname + location.search);
+          if (currPath !== eA.targetUrl) continue;
+        }
         var strippedPath = stripMarket(location.pathname) + location.search;
         if (strippedPath !== av.redirectUrl && location.href !== av.redirectUrl) {
           clearTimeout(safetyTimer); w.location.replace(withMarket(av.redirectUrl)); return;
@@ -220,18 +225,58 @@
       return 'desktop';
     }
 
+    // Build filtered assignment map for event reporting.
+    // URL_REDIRECT experiments with a targetUrl are only included when the
+    // visitor is on the source URL (control) or destination URL (variant).
+    // This prevents off-page events from inflating session/ATC counts.
+    function buildEventAsgn() {
+      var active = {};
+      var path = stripMarket(location.pathname);
+      for (var expId in asgn) {
+        var varId = asgn[expId];
+        var exp = null;
+        for (var ei = 0; ei < exps.length; ei++) {
+          if (exps[ei].id === expId) { exp = exps[ei]; break; }
+        }
+        if (!exp) { active[expId] = varId; continue; }
+        if (exp.type === 'URL_REDIRECT' && exp.targetUrl) {
+          var isControl = false, destUrl = null;
+          var vars = exp.variants || [];
+          for (var vi = 0; vi < vars.length; vi++) {
+            if (vars[vi].id === varId) {
+              isControl = !!vars[vi].isControl;
+              destUrl = vars[vi].redirectUrl || null;
+              break;
+            }
+          }
+          var sourcePath = stripMarket(exp.targetUrl.split('?')[0]);
+          var onSource = path === sourcePath;
+          var destPath = destUrl ? stripMarket(destUrl.split('?')[0]) : null;
+          var onDest = destPath && path === destPath;
+          if (isControl && !onSource) continue;
+          if (!isControl && !onDest) continue;
+        }
+        active[expId] = varId;
+      }
+      return active;
+    }
+
     function sendEvent(type, extra) {
       if (!hasConsent()) return;
       if (!Object.keys(asgn).length) return; // no experiments — nothing to record
-      var payload = { type: type, visitorId: visitorId, assignments: asgn, shopDomain: shop, pageUrl: location.href, device: getDevice(), ts: Date.now() };
+      var evtAsgn = buildEventAsgn();
+      if (!Object.keys(evtAsgn).length) return;
+      var payload = { type: type, visitorId: visitorId, assignments: evtAsgn, shopDomain: shop, pageUrl: location.href, device: getDevice(), ts: Date.now() };
       if (extra) { for (var k in extra) payload[k] = extra[k]; }
       sendBeacon(apiUrl + '/api/events', JSON.stringify(payload));
     }
 
     function sendPageView() {
       if (!hasConsent()) return;
+      var evtAsgn = buildEventAsgn();
+      if (!Object.keys(evtAsgn).length) return;
       sendBeacon(apiUrl + '/api/events', JSON.stringify({
-        type: 'PAGE_VIEW', visitorId: visitorId, assignments: asgn,
+        type: 'PAGE_VIEW', visitorId: visitorId, assignments: evtAsgn,
         shopDomain: shop, pageUrl: location.href, device: getDevice(), ts: Date.now(),
       }));
     }

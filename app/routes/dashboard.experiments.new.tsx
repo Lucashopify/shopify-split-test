@@ -6,6 +6,7 @@ import { requireDashboardSession } from "../lib/dashboard-auth.server";
 import { prisma } from "../db.server";
 import { getThemes, getThemeTemplateFiles } from "../lib/shopify/admin.server";
 import { getPlanLimits, checkExperimentLimit, checkTypeAllowed } from "../lib/billing.server";
+import { createPriceTestProduct } from "../lib/shopify/admin.server";
 import type { ExperimentType } from "@prisma/client";
 
 const EXPERIMENT_TYPES = [
@@ -45,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shopId, billingPlanName, isShopifyPlus } = await requireDashboardSession(request);
+  const { shopId, billingPlanName, isShopifyPlus, admin } = await requireDashboardSession(request);
   const formData = await request.formData();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -60,6 +61,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!name) return { error: "Experiment name is required." };
   if (!type) return { error: "Experiment type is required." };
   if (type === "PRICE" && !isShopifyPlus) return { error: "Price experiments require a Shopify Plus store." };
+
+  // Non-Plus automated price test — duplicate product, reprice, then create a URL_REDIRECT experiment
+  if (type === "PRICE_REDIRECT") {
+    const targetProductGid = String(formData.get("targetProductGid") ?? "").trim();
+    const targetProductHandle = String(formData.get("targetProductHandle") ?? "").trim();
+    const targetProductTitle = String(formData.get("targetProductTitle") ?? "").trim();
+    const adjType = String(formData.get("variantPriceAdjType") ?? "percent").trim() as "percent" | "fixed";
+    const adjValue = Number(formData.get("variantPriceAdjValue") ?? 0);
+    const trafficAllocation = Number(formData.get("trafficAllocation") ?? 100);
+    const segmentId = String(formData.get("segmentId") ?? "").trim() || null;
+    const controlName = String(formData.get("controlName") ?? "Control").trim();
+    const variantName = String(formData.get("variantName") ?? "Variant B").trim();
+
+    if (!targetProductGid || !targetProductHandle) return { error: "Please select a product to test." };
+    if (!adjValue) return { error: "Please enter a price adjustment value." };
+
+    let duplicateGid: string, duplicateHandle: string;
+    try {
+      ({ productGid: duplicateGid, handle: duplicateHandle } = await createPriceTestProduct(
+        admin, targetProductGid, targetProductTitle, adjType, adjValue,
+      ));
+    } catch (err) {
+      return { error: `Could not create test product: ${(err as Error).message}` };
+    }
+
+    const experiment = await prisma.experiment.create({
+      data: {
+        shopId, name,
+        hypothesis: String(formData.get("hypothesis") ?? "").trim() || null,
+        type: "URL_REDIRECT",
+        trafficAllocation,
+        segmentId,
+        targetUrl: `/products/${targetProductHandle}`,
+        targetProductHandle,
+        targetProductId: duplicateGid,
+        variants: {
+          create: [
+            { name: controlName, isControl: true, trafficWeight: 50 },
+            { name: variantName, isControl: false, trafficWeight: 50, redirectUrl: `/products/${duplicateHandle}` },
+          ],
+        },
+      },
+    });
+    return redirect(`/dashboard/experiments/${experiment.id}`);
+  }
 
   // Plan gating
   const limits = await getPlanLimits(shopId, billingPlanName);
@@ -91,6 +137,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const templateType = type === "TEMPLATE" ? String(formData.get("templateType") ?? "").trim() || null : null;
   const targetProductHandle = type === "PRICE" ? String(formData.get("targetProductHandle") ?? "").trim() || null : null;
+  const targetUrl = type === "URL_REDIRECT" ? String(formData.get("targetUrl") ?? "").trim() || null : null;
 
   const experiment = await prisma.experiment.create({
     data: {
@@ -103,6 +150,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       targetTemplate: templateType,
       targetSelector,
       targetProductHandle,
+      targetUrl,
       variants: { create: [{ name: controlName, isControl: true, trafficWeight: 50 }, variantBData as any] },
     },
   });
@@ -166,10 +214,12 @@ export default function NewExperiment() {
   const [templateType, setTemplateType] = useState("product");
   const [targetProductHandle, setTargetProductHandle] = useState("");
   const [targetProductTitle, setTargetProductTitle] = useState("");
+  const [targetProductGid, setTargetProductGid] = useState("");
   const [productQuery, setProductQuery] = useState("");
   const [productResults, setProductResults] = useState<Array<{ id: string; title: string; handle: string; imageUrl: string | null; price: string }>>([]);
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const productSearchRef = useRef<HTMLDivElement>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
   const [showDevInstructions, setShowDevInstructions] = useState(false);
   const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
@@ -210,16 +260,17 @@ export default function NewExperiment() {
     fd.set("controlName", controlName);
     fd.set("variantName", variantName);
     if (type === "THEME") fd.set("variantThemeId", variantThemeId);
-    if (type === "URL_REDIRECT") fd.set("variantRedirectUrl", variantRedirectUrl);
+    if (type === "URL_REDIRECT") { fd.set("variantRedirectUrl", variantRedirectUrl); fd.set("targetUrl", sourceUrl); }
     if (["SECTION", "PAGE"].includes(type)) { fd.set("variantCustomLiquid", variantCustomLiquid); fd.set("targetSelector", targetSelector); }
     if (type === "TEMPLATE") { fd.set("variantViewName", variantViewName); fd.set("templateType", templateType); }
     if (type === "PRICE") { fd.set("targetProductHandle", targetProductHandle); fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); }
+    if (type === "PRICE_REDIRECT") { fd.set("targetProductGid", targetProductGid); fd.set("targetProductHandle", targetProductHandle); fd.set("targetProductTitle", targetProductTitle); fd.set("variantPriceAdjType", variantPriceAdjType); fd.set("variantPriceAdjValue", variantPriceAdjValue); }
     if (segmentId) fd.set("segmentId", segmentId);
     submit(fd, { method: "post" });
   }, [name, hypothesis, type, trafficAllocation, controlName, variantName,
-      variantThemeId, variantRedirectUrl,
+      variantThemeId, variantRedirectUrl, sourceUrl,
       variantCustomLiquid, variantViewName, templateType,
-      targetProductHandle, variantPriceAdjType, variantPriceAdjValue,
+      targetProductHandle, targetProductGid, targetProductTitle, variantPriceAdjType, variantPriceAdjValue,
       segmentId, submit]);
 
   return (
@@ -284,12 +335,20 @@ export default function NewExperiment() {
               return { value: t.value, label: t.label, disabled: !!locked, badge: locked ? "Starter" : undefined };
             }),
             { value: "PRICE", label: "Price test — test different prices for a product", disabled: !isShopifyPlus, badge: !isShopifyPlus ? "Shopify Plus only" : undefined },
+            { value: "PRICE_REDIRECT", label: "Price test — auto setup (all plans)" },
           ]}
         />
         {planLimits && !planLimits.allowedTypes.includes(type) && (
           <p style={{ ...helpText, color: "#dc2626", marginTop: "0.5rem" }}>
             This test type requires a paid plan. <a href="/dashboard/billing" style={{ color: "#dc2626" }}>Upgrade →</a>
           </p>
+        )}
+        {!isShopifyPlus && (
+          <div style={{ marginTop: "0.75rem", padding: "0.875rem 1rem", background: "#fafafa", border: "1px solid #e9e9e9", borderRadius: 6, fontSize: "0.8125rem", color: "#555", lineHeight: 1.6 }}>
+            <strong style={{ color: "#111" }}>Want to test prices without Shopify Plus?</strong>
+            {" "}You can use a URL Redirect experiment: duplicate your product in Shopify Admin, set the test price on the duplicate, hide it from search and collections, then redirect a portion of traffic to it.{" "}
+            <a href="/dashboard/help#price-testing-non-plus" style={{ color: "#5b5bd6" }}>Step-by-step guide →</a>
+          </div>
         )}
       </div>
 
@@ -318,10 +377,17 @@ export default function NewExperiment() {
         )}
 
         {type === "URL_REDIRECT" && (
-          <div>
-            <label style={label}>{variantName || "Variant B"} destination URL</label>
-            <input style={input} value={variantRedirectUrl} onChange={(e) => setVariantRedirectUrl(e.target.value)} placeholder="https://yourstore.com/new-landing-page" autoComplete="off" />
-            <p style={helpText}>Visitors in this variant are redirected here. Use a relative path or absolute URL.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div>
+              <label style={label}>Source URL <span style={{ color: "#dc2626" }}>*</span></label>
+              <input style={input} value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="/products/my-product" autoComplete="off" />
+              <p style={helpText}>The page where the redirect fires. Only visitors on this exact URL are redirected and tracked. Use a root-relative path (e.g. /products/my-product).</p>
+            </div>
+            <div>
+              <label style={label}>{variantName || "Variant B"} destination URL</label>
+              <input style={input} value={variantRedirectUrl} onChange={(e) => setVariantRedirectUrl(e.target.value)} placeholder="/products/my-product-price-test" autoComplete="off" />
+              <p style={helpText}>Variant B visitors are redirected here. Use a root-relative path or absolute URL.</p>
+            </div>
           </div>
         )}
 
@@ -405,7 +471,7 @@ export default function NewExperiment() {
                   <span style={{ fontSize: "0.875rem", color: "#111" }}>{targetProductTitle}</span>
                   <button
                     type="button"
-                    onClick={() => { setTargetProductHandle(""); setTargetProductTitle(""); setProductQuery(""); }}
+                    onClick={() => { setTargetProductHandle(""); setTargetProductTitle(""); setTargetProductGid(""); setProductQuery(""); }}
                     style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "0.875rem", padding: 0 }}
                   >
                     ✕
@@ -429,7 +495,7 @@ export default function NewExperiment() {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => { setTargetProductHandle(p.handle); setTargetProductTitle(p.title); setProductSearchOpen(false); }}
+                      onClick={() => { setTargetProductHandle(p.handle); setTargetProductTitle(p.title); setTargetProductGid(p.id); setProductSearchOpen(false); }}
                       style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: "100%", padding: "0.625rem 0.75rem", background: "none", border: "none", borderBottom: "1px solid #f3f3f3", cursor: "pointer", textAlign: "left" }}
                     >
                       {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
@@ -470,6 +536,51 @@ export default function NewExperiment() {
                   autoComplete="off"
                 />
                 <p style={helpText}>Use negative values to decrease price, positive to increase.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {type === "PRICE_REDIRECT" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div style={{ padding: "0.75rem 1rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, fontSize: "0.8125rem", color: "#1e40af" }}>
+              We'll automatically duplicate the product, set the test price on the copy, and redirect a portion of your visitors to it. When you end the experiment, the duplicate is deleted.
+            </div>
+            <div ref={productSearchRef} style={{ position: "relative" }}>
+              <label style={label}>Product</label>
+              {targetProductHandle ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", border: "1px solid #e9e9e9", borderRadius: 6, background: "#fff" }}>
+                  <span style={{ fontSize: "0.875rem", color: "#111" }}>{targetProductTitle}</span>
+                  <button type="button" onClick={() => { setTargetProductHandle(""); setTargetProductTitle(""); setTargetProductGid(""); setProductQuery(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "0.875rem", padding: 0 }}>✕</button>
+                </div>
+              ) : (
+                <input style={input} value={productQuery} onChange={(e) => { setProductQuery(e.target.value); setProductSearchOpen(true); }} onFocus={() => setProductSearchOpen(true)} placeholder="Search products..." autoComplete="off" />
+              )}
+              {productSearchOpen && !targetProductHandle && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, background: "#fff", border: "1px solid #e9e9e9", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.08)", maxHeight: 240, overflowY: "auto", marginTop: 2 }}>
+                  {productResults.length === 0 ? (
+                    <div style={{ padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "#aaa" }}>No products found</div>
+                  ) : productResults.map((p) => (
+                    <button key={p.id} type="button" onClick={() => { setTargetProductHandle(p.handle); setTargetProductTitle(p.title); setTargetProductGid(p.id); setProductSearchOpen(false); }} style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: "100%", padding: "0.625rem 0.75rem", background: "none", border: "none", borderBottom: "1px solid #f3f3f3", cursor: "pointer", textAlign: "left" }}>
+                      {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
+                      <div>
+                        <div style={{ fontSize: "0.8125rem", color: "#111", fontWeight: 500 }}>{p.title}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#aaa" }}>{p.handle} · {p.price}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div>
+                <label style={label}>{variantName || "Variant B"} adjustment type</label>
+                <Select style={input} value={variantPriceAdjType} onChange={setVariantPriceAdjType} options={[{ value: "percent", label: "Percent (e.g. -10%)" }, { value: "fixed", label: "Fixed amount (e.g. -5.00)" }]} />
+              </div>
+              <div>
+                <label style={label}>{variantName || "Variant B"} adjustment value</label>
+                <input style={input} type="number" value={variantPriceAdjValue} onChange={(e) => setVariantPriceAdjValue(e.target.value)} placeholder={variantPriceAdjType === "percent" ? "-10" : "-5.00"} step={variantPriceAdjType === "percent" ? "1" : "0.01"} autoComplete="off" />
+                <p style={helpText}>Negative = lower price, positive = higher price. Applied to all variants of the product.</p>
               </div>
             </div>
           </div>

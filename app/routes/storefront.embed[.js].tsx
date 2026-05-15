@@ -104,6 +104,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     for(var m=0;m<vs2.length;m++){if(vs2[m].id===vId){av=vs2[m];break;}}
     if(!av||av.isControl)continue;
     if(eA.type==='URL_REDIRECT'&&av.redirectUrl){
+      if(eA.targetUrl&&location.pathname+location.search!==eA.targetUrl){continue;}
       if(location.pathname+location.search!==av.redirectUrl&&location.href!==av.redirectUrl){
         w.location.replace(av.redirectUrl);return;
       }
