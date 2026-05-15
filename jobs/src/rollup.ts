@@ -137,9 +137,10 @@ async function rollupExperiment(exp: Experiment) {
 
   const variantMetrics: VM[] = [];
 
-  // For PRICE experiments, sessions = product page views only (visitor saw the price).
-  // For all other types, sessions = any page view.
-  const pageViewUrlFilter = exp.type === "PRICE" && exp.targetProductHandle
+  // For PRICE experiments, scope PAGE_VIEW and ADD_TO_CART to the tested product URL.
+  // Sessions = visitor saw the price (on PDP). ATC = added that specific product.
+  // INITIATE_CHECKOUT is not filtered — visitors check out from /cart, not the PDP.
+  const productUrlFilter = exp.type === "PRICE" && exp.targetProductHandle
     ? { url: { contains: `/products/${exp.targetProductHandle}` } }
     : {};
 
@@ -147,14 +148,14 @@ async function rollupExperiment(exp: Experiment) {
     const [sessions, uniqueVisitorRows, addToCartCount, initiateCheckoutCount, conversionCount, revenueAgg] =
       await Promise.all([
         prisma.event.count({
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageViewUrlFilter },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
         }),
         prisma.event.groupBy({
           by: ["visitorId"],
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageViewUrlFilter },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
         }),
         prisma.event.count({
-          where: { experimentId, variantId: variant.id, type: "ADD_TO_CART", occurredAt: { gte: windowStart, lt: windowEnd } },
+          where: { experimentId, variantId: variant.id, type: "ADD_TO_CART", occurredAt: { gte: windowStart, lt: windowEnd }, ...productUrlFilter },
         }),
         prisma.event.count({
           where: { experimentId, variantId: variant.id, type: "INITIATE_CHECKOUT", occurredAt: { gte: windowStart, lt: windowEnd } },
