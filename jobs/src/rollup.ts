@@ -137,15 +137,21 @@ async function rollupExperiment(exp: Experiment) {
 
   const variantMetrics: VM[] = [];
 
+  // For PRICE experiments, sessions = product page views only (visitor saw the price).
+  // For all other types, sessions = any page view.
+  const pageViewUrlFilter = exp.type === "PRICE" && exp.targetProductHandle
+    ? { url: { contains: `/products/${exp.targetProductHandle}` } }
+    : {};
+
   for (const variant of variants) {
     const [sessions, uniqueVisitorRows, addToCartCount, initiateCheckoutCount, conversionCount, revenueAgg] =
       await Promise.all([
         prisma.event.count({
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd } },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageViewUrlFilter },
         }),
         prisma.event.groupBy({
           by: ["visitorId"],
-          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd } },
+          where: { experimentId, variantId: variant.id, type: "PAGE_VIEW", occurredAt: { gte: windowStart, lt: windowEnd }, ...pageViewUrlFilter },
         }),
         prisma.event.count({
           where: { experimentId, variantId: variant.id, type: "ADD_TO_CART", occurredAt: { gte: windowStart, lt: windowEnd } },
