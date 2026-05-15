@@ -156,9 +156,9 @@ export default function DashboardLayout() {
           <NavLink to="/dashboard/settings" style={({ isActive }) => ({ ...S.footerLink, color: isActive ? "#111" : "#aaaaaa", marginBottom: "0.375rem" })}>
             <span>Settings</span>
           </NavLink>
-          <NavLink to="/dashboard/help" style={({ isActive }) => ({ ...S.footerLink, color: isActive ? "#111" : "#aaaaaa", marginBottom: "0.375rem" })}>
-            <span>Help</span>
-          </NavLink>
+          <a href="https://arkticstudio.mintlify.app" target="_blank" rel="noreferrer" style={S.footerLink}>
+            <span>Help &amp; docs</span>
+          </a>
           <a
             href={`https://${shop}/admin/apps`}
             target="_blank"

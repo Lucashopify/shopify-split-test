@@ -200,12 +200,12 @@ export default function HelpPage() {
       <div style={S.toc}>
         <div style={S.tocTitle}>On this page</div>
         <a href="#experiment-types" style={S.tocItem}>Experiment types</a>
-        <a href="#price-testing-plus" style={S.tocItem}>Price testing — Shopify Plus</a>
-        <a href="#price-testing-non-plus" style={S.tocItem}>Price testing — non-Plus stores</a>
+        <a href="#price-testing-plus" style={S.tocItem}>Price testing: Shopify Plus</a>
+        <a href="#price-testing-non-plus" style={S.tocItem}>Price testing: non-Plus stores</a>
         <a href="#theme-compatibility" style={S.tocItem}>Theme compatibility</a>
         <a href="#metrics" style={S.tocItem}>How metrics are tracked</a>
         <a href="#guardrails" style={S.tocItem}>Guardrails & auto-pause</a>
-        <a href="#price-limitations" style={S.tocItem}>Price testing — known limitations</a>
+        <a href="#price-limitations" style={S.tocItem}>Price testing: known limitations</a>
         <a href="#faq" style={S.tocItem}>FAQ</a>
       </div>
 
@@ -223,7 +223,7 @@ export default function HelpPage() {
           <tbody>
             <tr>
               <td style={S.td}><strong>Theme</strong></td>
-              <td style={S.td}>Any visual change — layout, copy, images, colors — via Shopify theme versions</td>
+              <td style={S.td}>Any visual change (layout, copy, images, colors) via Shopify theme versions</td>
               <td style={S.td}>Any plan</td>
             </tr>
             <tr>
@@ -242,22 +242,22 @@ export default function HelpPage() {
 
       <div style={S.divider} />
 
-      {/* Price testing — Plus */}
+      {/* Price testing - Plus */}
       <div style={S.section} id="price-testing-plus">
         <h2 style={S.h2}>
-          Price testing — Shopify Plus
+          Price testing: Shopify Plus
           <span style={S.badge("purple")}>Plus only</span>
         </h2>
 
         <p style={S.p}>
-          Price experiments use Shopify's <strong>Cart Transform API</strong> to modify the actual checkout price server-side — no discount codes, no workarounds. The customer sees the test price in their cart and at checkout, and pays that price.
+          Price experiments use Shopify's <strong>Cart Transform API</strong> to modify the actual checkout price server-side, no discount codes, no workarounds. The customer sees the test price in their cart and at checkout, and pays that price.
         </p>
 
         <div style={S.callout("blue")}>
           <strong>How it works:</strong> When a visitor is assigned to the test variant, our theme script sets the displayed price on the product page. When they add to cart, a hidden line property records their variant assignment. Our Cart Transform function reads that property and adjusts the price before checkout is finalized.
         </div>
 
-        <h3 style={S.h3}>Step 1 — Create the experiment</h3>
+        <h3 style={S.h3}>Step 1: Create the experiment</h3>
         <ol style={S.ol}>
           <li style={S.li}>Go to <strong>Experiments → New experiment</strong></li>
           <li style={S.li}>Select <strong>Price test</strong></li>
@@ -265,7 +265,7 @@ export default function HelpPage() {
           <li style={S.li}>Set traffic split and launch</li>
         </ol>
 
-        <h3 style={S.h3}>Step 2 — Theme setup (required)</h3>
+        <h3 style={S.h3}>Step 2: Theme setup (required)</h3>
         <p style={S.p}>
           The price script needs to know which HTML elements to update on your product page and in the cart. For themes we support out of the box, this is automatic. For custom themes, you or your developer needs to add two data attributes.
         </p>
@@ -282,9 +282,9 @@ export default function HelpPage() {
 
       <div style={S.divider} />
 
-      {/* Price testing — non-Plus */}
+      {/* Price testing - non-Plus */}
       <div style={S.section} id="price-testing-non-plus">
-        <h2 style={S.h2}>Price testing — non-Plus stores</h2>
+        <h2 style={S.h2}>Price testing: non-Plus stores</h2>
 
         <div style={S.callout("yellow")}>
           <strong>Cart Transform is Shopify Plus only.</strong> Without it, you cannot change the actual checkout price server-side. The workaround below lets you test prices without Plus by using a duplicate product.
@@ -296,14 +296,14 @@ export default function HelpPage() {
 
         <h3 style={S.h3}>How it works</h3>
         <p style={S.p}>
-          You create a duplicate of your product with the test price set directly on it in Shopify Admin. You then run a <strong>URL Redirect</strong> experiment that sends a portion of visitors to the duplicate product URL. Since the price is set on the product itself, Shopify handles checkout normally — no Cart Transform needed.
+          You create a duplicate of your product with the test price set directly on it in Shopify Admin. You then run a <strong>URL Redirect</strong> experiment that sends a portion of visitors to the duplicate product URL. Since the price is set on the product itself, Shopify handles checkout normally, no Cart Transform needed.
         </p>
 
         <h3 style={S.h3}>Step-by-step setup</h3>
         <ol style={S.ol}>
           <li style={S.li}>
             <strong>Duplicate the product in Shopify Admin</strong><br />
-            <span style={{ color: "#666" }}>Go to Products → find your product → click the "…" menu → Duplicate. Give it a name like "Product Name — Price Test".</span>
+            <span style={{ color: "#666" }}>Go to Products → find your product → click the "…" menu → Duplicate. Give it a name like "Product Name - Price Test".</span>
           </li>
           <li style={S.li}>
             <strong>Set the test price on the duplicate</strong><br />
@@ -358,7 +358,7 @@ export default function HelpPage() {
             </tr>
             <tr>
               <td style={S.td}>Same product URL for all visitors</td>
-              <td style={S.td}>No — different URLs</td>
+              <td style={S.td}>No (different URLs)</td>
               <td style={S.td}>Yes</td>
             </tr>
             <tr>
@@ -391,7 +391,7 @@ export default function HelpPage() {
         </p>
 
         <h3 style={S.h3}>Supported themes (automatic setup)</h3>
-        <p style={S.p}>The following Shopify-owned themes are supported out of the box — no setup needed:</p>
+        <p style={S.p}>The following Shopify-owned themes are supported out of the box, no setup needed:</p>
         <div style={{ display: "flex", flexWrap: "wrap" as const, gap: "0.375rem", marginBottom: "1rem" }}>
           {["Dawn", "Sense", "Craft", "Crave", "Colorblock", "Refresh", "Studio", "Origin", "Spotlight", "Ride", "Expression", "Habitat", "Presence", "Publisher"].map((t) => (
             <span key={t} style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", borderRadius: 4, padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 500 }}>{t}</span>
@@ -402,7 +402,7 @@ export default function HelpPage() {
         <p style={S.p}>
           If you're using a theme not in the list above, you or your developer needs to add two <code style={S.code}>data-</code> attributes to your theme's Liquid files. This is a one-time setup.
         </p>
-        <p style={S.p}>Not a developer? <strong>Contact us</strong> — we'll set it up for you at no charge.</p>
+        <p style={S.p}>Not a developer? <strong>Contact us</strong> and we'll set it up for you at no charge.</p>
 
         <h3 style={S.h3}>For developers</h3>
         <p style={S.p}>Add these two attributes to the relevant elements in your theme:</p>
@@ -418,7 +418,7 @@ export default function HelpPage() {
 <span class="cart-item__price" data-spt-cart-price>{{ item.final_price | money }}</span>`}</div>
 
         <div style={S.callout("blue")}>
-          <strong>Note:</strong> These attributes are only used by Arktic's price experiment script — they have no effect on your theme's normal behavior and are safe to add.
+          <strong>Note:</strong> These attributes are only used by Arktic's price experiment script; they have no effect on your theme's normal behavior and are safe to add.
         </div>
       </div>
 
@@ -444,7 +444,7 @@ export default function HelpPage() {
         </ul>
 
         <h3 style={S.h3}>Checkout rate</h3>
-        <p style={S.p}>Checkout rate is shown for Theme and URL Redirect experiments. It is not shown for price experiments because checkout happens from the cart page, not the product page — it can't be reliably attributed to the product being tested.</p>
+        <p style={S.p}>Checkout rate is shown for Theme and URL Redirect experiments. It is not shown for price experiments because checkout happens from the cart page, not the product page, so it can't be reliably attributed to the product being tested.</p>
 
         <h3 style={S.h3}>Conversions (orders)</h3>
         <p style={S.p}>An order is counted as a conversion when the visitor who was assigned to a variant completes a purchase. For price experiments this includes any order from that visitor, not just the tested product.</p>
@@ -455,7 +455,7 @@ export default function HelpPage() {
         </p>
 
         <h3 style={S.h3}>Revenue per visitor (RPV)</h3>
-        <p style={S.p}>Total revenue divided by sessions. This is often the most important metric for e-commerce experiments — a variant with a lower conversion rate can still win if it drives higher order values.</p>
+        <p style={S.p}>Total revenue divided by sessions. This is often the most important metric for e-commerce experiments. A variant with a lower conversion rate can still win if it drives higher order values.</p>
       </div>
 
       <div style={S.divider} />
@@ -481,7 +481,7 @@ export default function HelpPage() {
 
         <h3 style={S.h3}>Novelty effect detection</h3>
         <p style={S.p}>
-          After 3+ days of data, Arktic checks whether a treatment variant's early conversion rate (first 48h) is 40% or more higher than its later rate. If so, the experiment is flagged (not paused) — the early lift may be due to novelty rather than a real improvement. Check back after more data accumulates before concluding.
+          After 3+ days of data, Arktic checks whether a treatment variant's early conversion rate (first 48h) is 40% or more higher than its later rate. If so, the experiment is flagged (not paused). The early lift may be due to novelty rather than a real improvement. Check back after more data accumulates before concluding.
         </p>
       </div>
 
@@ -491,14 +491,14 @@ export default function HelpPage() {
 
       {/* Price testing limitations */}
       <div style={S.section} id="price-limitations">
-        <h2 style={S.h2}>Price testing — known limitations</h2>
+        <h2 style={S.h2}>Price testing: known limitations</h2>
         <p style={S.p}>
           Price experiments work well for most standard Shopify stores, but there are a few setups where things break down. Check these before launching a price test.
         </p>
 
         <h3 style={S.h3}>Multiple currencies</h3>
         <p style={S.p}>
-          If your store uses Shopify Markets or a third-party multi-currency tool (e.g. Global-E), price tests are not supported. Our Cart Transform applies the price adjustment in your store's base currency. When Shopify converts that to a foreign currency, the displayed price and the checkout price can diverge — visitors may see one number and be charged another. Do not run price tests if your store sells in more than one currency.
+          If your store uses Shopify Markets or a third-party multi-currency tool (e.g. Global-E), price tests are not supported. Our Cart Transform applies the price adjustment in your store's base currency. When Shopify converts that to a foreign currency, the displayed price and the checkout price can diverge: visitors may see one number and be charged another. Do not run price tests if your store sells in more than one currency.
         </p>
 
         <h3 style={S.h3}>Subscription products</h3>
@@ -508,7 +508,7 @@ export default function HelpPage() {
 
         <h3 style={S.h3}>Page builder product pages</h3>
         <p style={S.p}>
-          Price tests update the displayed price on your product page by targeting specific HTML elements. If your PDP is built with a page builder (e.g. Replo, PageFly, Funnelish), the HTML structure it generates often doesn't match our price selectors — meaning the displayed price won't update even if the checkout price is correct.
+          Price tests update the displayed price on your product page by targeting specific HTML elements. If your PDP is built with a page builder (e.g. Replo, PageFly, Funnelish), the HTML structure it generates often doesn't match our price selectors, meaning the displayed price won't update even if the checkout price is correct.
         </p>
         <p style={S.p}>
           The fix is the same as for custom themes: add <code style={S.code}>data-spt-price</code> to the price element inside your page builder component. Some builders support custom attributes directly; others require a developer. Contact us if you're unsure.
@@ -516,7 +516,7 @@ export default function HelpPage() {
 
         <h3 style={S.h3}>App-based or JavaScript bundles</h3>
         <p style={S.p}>
-          When a customer adds a product to cart, our script attaches a hidden property to the cart line item. Cart Transform reads this property to know which price to apply. If your store uses a bundling app that adds products to the cart via its own JavaScript (rather than through a standard Shopify product form), that property may not get attached — and Cart Transform won't apply the test price.
+          When a customer adds a product to cart, our script attaches a hidden property to the cart line item. Cart Transform reads this property to know which price to apply. If your store uses a bundling app that adds products to the cart via its own JavaScript (rather than through a standard Shopify product form), that property may not get attached, and Cart Transform won't apply the test price.
         </p>
         <p style={S.p}>
           Standard Shopify product forms (the default add-to-cart form on a product page) work correctly. Bundles set up as separate products in Shopify admin also work. The limitation is specific to bundles that bypass the product form entirely.
@@ -546,13 +546,13 @@ export default function HelpPage() {
         <p style={S.p}>Yes, but be careful. If two experiments affect the same page or product, the same visitor may be enrolled in both, which can pollute your results. It's best to run overlapping experiments only when you're confident they don't interact.</p>
 
         <h3 style={S.h3}>How long should I run an experiment?</h3>
-        <p style={S.p}>Long enough to reach statistical significance and cover at least one full business week (to account for day-of-week variation). For most stores, this means 1–4 weeks. Don't stop early just because you see a promising result — early significance often doesn't hold.</p>
+        <p style={S.p}>Long enough to reach statistical significance and cover at least one full business week (to account for day-of-week variation). For most stores, this means 1–4 weeks. Don't stop early just because you see a promising result; early significance often doesn't hold.</p>
 
         <h3 style={S.h3}>Does the price experiment affect SEO?</h3>
         <p style={S.p}>No. The price change is client-side on the product page and server-side at checkout. Googlebot sees the original product price. Your structured data (JSON-LD) is not modified.</p>
 
         <h3 style={S.h3}>I need help setting up my theme. What do I do?</h3>
-        <p style={S.p}>Contact us — we'll set it up for you at no extra charge. Reach out via the chat widget or email us at <strong>support@arkticstudio.com</strong>.</p>
+        <p style={S.p}>Contact us and we'll set it up for you at no extra charge. Reach out via the chat widget or email us at <strong>support@arkticstudio.com</strong>.</p>
       </div>
     </div>
   );
