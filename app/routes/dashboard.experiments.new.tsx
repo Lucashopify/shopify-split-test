@@ -30,11 +30,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Detect active theme and whether our price selectors cover it out of the box
   const activeTheme = themesWithDate.find((t) => t.role === "MAIN") ?? themesWithDate[0] ?? null;
+  // Only themes we've verified our selectors work on (PDP + cart + compare-at hiding)
   const KNOWN_THEMES = [
+    // Dawn and all Shopify-owned Dawn-based themes (same price snippet codebase)
     "dawn", "sense", "craft", "crave", "colorblock", "refresh", "studio",
-    "origin", "spotlight", "ride", "expression", "habitat", "presence",
-    "publisher", "symmetry", "debut", "brooklyn", "minimal", "simple",
-    "narrative", "venture", "supply", "impulse",
+    "origin", "spotlight", "ride", "expression", "habitat", "presence", "publisher",
   ];
   const activeThemeName = activeTheme?.name ?? null;
   const themeSupported = activeThemeName
@@ -171,6 +171,7 @@ export default function NewExperiment() {
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const productSearchRef = useRef<HTMLDivElement>(null);
   const [variantPriceAdjType, setVariantPriceAdjType] = useState("percent");
+  const [showDevInstructions, setShowDevInstructions] = useState(false);
   const [variantPriceAdjValue, setVariantPriceAdjValue] = useState("");
 
   useEffect(() => {
@@ -362,27 +363,38 @@ export default function NewExperiment() {
             ) : (
               <div style={{ padding: "1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.8125rem", color: "#92400e", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ fontWeight: 600 }}>
-                  {activeThemeName ? `"${activeThemeName}" is a custom theme — one-time setup required` : "One-time theme setup required"}
+                  {activeThemeName ? `"${activeThemeName}" needs a one-time setup` : "Your theme needs a one-time setup"}
                 </div>
                 <p style={{ margin: 0, lineHeight: 1.6 }}>
-                  To make sure the test price shows correctly on your product page and cart, you need to add a small marker to your theme. You only do this once — it works for all future price tests.
+                  To show the correct price on your store, we need to mark your price display once. It takes a few minutes and only needs to be done once — all future price tests will work automatically.
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <div style={{ fontWeight: 500 }}>Step 1 — Open your theme code</div>
-                  <p style={{ margin: 0, color: "#78350f" }}>In Shopify Admin, go to <strong>Online Store → Themes → Edit code</strong>. Look for a file called <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>snippets/price.liquid</code> or search for where your product price is displayed (usually in <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>sections/main-product.liquid</code>).</p>
-
-                  <div style={{ fontWeight: 500, marginTop: "0.25rem" }}>Step 2 — Mark your price element</div>
-                  <p style={{ margin: 0, color: "#78350f" }}>Find the HTML element that shows the product price and add <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-price</code> to it. Example:</p>
-                  <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-price>{{ product.price | money }}</span>`}</pre>
-
-                  <div style={{ fontWeight: 500, marginTop: "0.25rem" }}>Step 3 — Mark your cart price element</div>
-                  <p style={{ margin: 0, color: "#78350f" }}>In your cart template (usually <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>snippets/cart-line-item.liquid</code>), add <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-cart-price</code> to the line item price element:</p>
-                  <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-cart-price>{{ item.final_price | money }}</span>`}</pre>
-
-                  <p style={{ margin: "0.25rem 0 0", color: "#a16207", fontSize: "0.75rem" }}>
-                    Not sure where to find these files? <a href="mailto:support@yourapp.com" style={{ color: "#a16207" }}>Contact us</a> and we'll set it up for you.
-                  </p>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <a
+                    href="mailto:support@arkticstudio.com?subject=Price test theme setup&body=Hi, I need help setting up my theme for price testing. My store is: "
+                    style={{ display: "inline-block", background: "#92400e", color: "#fff", borderRadius: 6, padding: "0.45rem 1rem", fontSize: "0.8125rem", fontWeight: 500, textDecoration: "none" }}
+                  >
+                    Contact us — we'll set it up for you
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowDevInstructions((v) => !v)}
+                    style={{ background: "none", border: "none", color: "#a16207", fontSize: "0.8125rem", cursor: "pointer", padding: 0, textDecoration: "underline" }}
+                  >
+                    {showDevInstructions ? "Hide" : "Developer? See instructions"}
+                  </button>
                 </div>
+                {showDevInstructions && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", borderTop: "1px solid #fde68a", paddingTop: "0.75rem" }}>
+                    <p style={{ margin: 0, color: "#78350f", lineHeight: 1.6 }}>
+                      Add <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-price</code> to the element that displays the product price in your theme, and <code style={{ background: "#fef3c7", padding: "0 4px", borderRadius: 3 }}>data-spt-cart-price</code> to the cart line item price element.
+                    </p>
+                    <div style={{ fontWeight: 500 }}>Product price (e.g. in your product section or price snippet)</div>
+                    <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-price>{{ product.price | money }}</span>`}</pre>
+                    <div style={{ fontWeight: 500 }}>Cart line item price (e.g. in your cart or drawer template)</div>
+                    <pre style={{ margin: 0, background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4, padding: "0.5rem 0.75rem", fontSize: "0.75rem", overflowX: "auto", color: "#78350f" }}>{`<span data-spt-cart-price>{{ item.final_price | money }}</span>`}</pre>
+                    <p style={{ margin: 0, color: "#a16207", fontSize: "0.75rem" }}>Add the attribute to your existing element — don't replace the Liquid output, just add the attribute to the wrapping tag.</p>
+                  </div>
+                )}
               </div>
             )}
 
