@@ -110,12 +110,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const checkoutByVar = byVariant(checkoutRows);
 
   const rows = experiments.map((exp) => {
+    const isPriceExp = exp.type === "PRICE";
     const variants = exp.variants.map((v) => {
       const visitors = v._count.allocations;
       const orders = v._count.orders;
       const revenue = v.orders.reduce((s, o) => s + o.revenue, 0);
       const atcCount = atcByVar[v.id] ?? 0;
-      const checkoutCount = checkoutByVar[v.id] ?? 0;
+      // Checkout is not product-scoped so it's meaningless for price experiments
+      const checkoutCount = isPriceExp ? 0 : (checkoutByVar[v.id] ?? 0);
       const cvr = visitors > 0 ? orders / visitors : 0;
       const atcRate = visitors > 0 ? atcCount / visitors : 0;
       const checkoutRate = visitors > 0 ? checkoutCount / visitors : 0;
@@ -161,6 +163,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       id: exp.id,
       name: exp.name,
       type: exp.type,
+      isPriceExp,
       status: exp.status,
       updatedAt: exp.updatedAt.toISOString(),
       srmFlagged,
@@ -198,7 +201,7 @@ type VariantRow = {
   pValue: number | null; isSignificant: boolean;
 };
 type ExpRow = {
-  id: string; name: string; type: string; status: string;
+  id: string; name: string; type: string; isPriceExp: boolean; status: string;
   updatedAt: string; srmFlagged: boolean; samplesNeeded: number | null; daysRunning: number;
   variants: VariantRow[];
 };
@@ -210,7 +213,8 @@ const TH_STYLE: React.CSSProperties = {
 };
 const TD: React.CSSProperties = { padding: "0.7rem 0.75rem", whiteSpace: "nowrap" };
 
-const HEADERS = ["Variant", "Visitors", "ATC Rate", "Checkout Rate", "CVR", "Orders", "AOV", "RPV", "Revenue", "Lift (95% CI)", "Confidence"];
+const ALL_HEADERS = ["Variant", "Visitors", "ATC Rate", "Checkout Rate", "CVR", "Orders", "AOV", "RPV", "Revenue", "Lift (95% CI)", "Confidence"];
+const PRICE_HEADERS = ALL_HEADERS.filter((h) => h !== "Checkout Rate");
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -285,7 +289,7 @@ export default function ResultsPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", minWidth: 960 }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #f0f0f0" }}>
-                        {HEADERS.map((h) => <th key={h} style={TH_STYLE}>{h}</th>)}
+                        {(exp.isPriceExp ? PRICE_HEADERS : ALL_HEADERS).map((h) => <th key={h} style={TH_STYLE}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -316,14 +320,16 @@ export default function ResultsPage() {
                               ) : "—"}
                             </td>
 
-                            {/* Checkout Rate */}
-                            <td style={{ ...TD, color: "#555" }}>
-                              {v.checkoutCount > 0 ? (
-                                <span>
-                                  {pct(v.checkoutRate)}<span style={{ fontSize: "0.7rem", color: "#bbb", marginLeft: 4 }}>({v.checkoutCount.toLocaleString()})</span>
-                                </span>
-                              ) : "—"}
-                            </td>
+                            {/* Checkout Rate — hidden for price experiments */}
+                            {!exp.isPriceExp && (
+                              <td style={{ ...TD, color: "#555" }}>
+                                {v.checkoutCount > 0 ? (
+                                  <span>
+                                    {pct(v.checkoutRate)}<span style={{ fontSize: "0.7rem", color: "#bbb", marginLeft: 4 }}>({v.checkoutCount.toLocaleString()})</span>
+                                  </span>
+                                ) : "—"}
+                              </td>
+                            )}
 
                             {/* CVR */}
                             <td style={{ ...TD, color: "#111", fontWeight: 600 }}>{pct(v.cvr)}</td>
