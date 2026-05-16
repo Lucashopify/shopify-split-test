@@ -14,6 +14,7 @@ const EXPERIMENT_TYPES = [
   { label: "Section / Content test — swap page sections", value: "SECTION" },
   { label: "URL redirect — route traffic to different pages", value: "URL_REDIRECT" },
   { label: "Template test — swap a page template (product, collection, etc.)", value: "TEMPLATE" },
+  { label: "Custom / JS — apply changes with your own code", value: "CUSTOM" },
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -628,6 +629,13 @@ export default function NewExperiment() {
           );
         })()}
       </div>
+
+
+        {type === "CUSTOM" && (
+          <div style={{ background: "#f0f0ff", border: "1px solid #c7c7f0", borderRadius: 8, padding: "1rem 1.125rem", fontSize: "0.8125rem", color: "#3333aa" }}>
+            <strong>No variant configuration needed.</strong> After creating this experiment, copy the experiment ID and variant IDs from the Overview tab. Use <code style={{ background: "#ddddf8", padding: "0.1em 0.35em", borderRadius: 3, fontFamily: "monospace" }}>window.Arktic.getVariant(experimentId)</code> in your theme code to apply changes for each variant. See the <a href="https://arkticstudio.mintlify.app/experiments/custom-js" target="_blank" rel="noreferrer" style={{ color: "#3333aa" }}>Custom JS docs</a> for full examples.
+          </div>
+        )}
 
       {/* Traffic */}
       <div style={card}>

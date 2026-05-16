@@ -139,6 +139,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   w.__SPT_ASGN__=asgn;
   w.__SPT_CFG__=cfg;
 
+  /* ── window.Arktic public API ────────────────────────────────────── */
+  w.Arktic={
+    getVariant:function(experimentId){
+      var varId=asgn[experimentId];if(!varId)return null;
+      for(var i=0;i<exps.length;i++){if(exps[i].id===experimentId){var vs=exps[i].variants||[];for(var j=0;j<vs.length;j++){if(vs[j].id===varId)return vs[j].name||varId;}}}
+      return null;
+    },
+    getVariantId:function(experimentId){return asgn[experimentId]||null;},
+    isControl:function(experimentId){
+      var varId=asgn[experimentId];if(!varId)return true;
+      for(var i=0;i<exps.length;i++){if(exps[i].id===experimentId){var vs=exps[i].variants||[];for(var j=0;j<vs.length;j++){if(vs[j].id===varId)return!!vs[j].isControl;}}}
+      return true;
+    },
+    getAssignments:function(){var c={};for(var k in asgn)c[k]=asgn[k];return c;},
+    onAssigned:function(experimentId,callback){
+      var varId=asgn[experimentId];if(!varId)return;
+      var name=w.Arktic.getVariant(experimentId);
+      try{callback(name,varId);}catch(e){}
+    },
+  };
+
   /* ── async tracking ──────────────────────────────────────────────── */
   function hasConsent(){
     try{var cp=w.Shopify&&w.Shopify.customerPrivacy;if(!cp)return true;return cp.analyticsProcessingAllowed();}

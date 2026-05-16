@@ -203,6 +203,56 @@
     w.__SPT_VID__ = visitorId;
     w.__SPT_ASGN__ = asgn;
     w.__SPT_CFG__ = cfg;
+    /* ── window.Arktic public API ────────────────────────────────────── */
+    w.Arktic = {
+      // Returns the variant name ('Control', 'Variant B', etc.) or null if not in the experiment
+      getVariant: function(experimentId) {
+        var varId = asgn[experimentId];
+        if (!varId) return null;
+        for (var i = 0; i < exps.length; i++) {
+          if (exps[i].id === experimentId) {
+            var vs = exps[i].variants || [];
+            for (var j = 0; j < vs.length; j++) {
+              if (vs[j].id === varId) return vs[j].name || varId;
+            }
+          }
+        }
+        return null;
+      },
+      // Returns the raw variant ID or null
+      getVariantId: function(experimentId) {
+        return asgn[experimentId] || null;
+      },
+      // Returns true if the visitor is in the control variant or not in the experiment at all
+      isControl: function(experimentId) {
+        var varId = asgn[experimentId];
+        if (!varId) return true;
+        for (var i = 0; i < exps.length; i++) {
+          if (exps[i].id === experimentId) {
+            var vs = exps[i].variants || [];
+            for (var j = 0; j < vs.length; j++) {
+              if (vs[j].id === varId) return !!vs[j].isControl;
+            }
+          }
+        }
+        return true;
+      },
+      // Returns all current assignments as { experimentId: variantId }
+      getAssignments: function() {
+        var copy = {};
+        for (var k in asgn) copy[k] = asgn[k];
+        return copy;
+      },
+      // Calls callback(variantName, variantId) immediately if the visitor is assigned to this experiment.
+      // Does nothing if the visitor is not in the experiment.
+      onAssigned: function(experimentId, callback) {
+        var varId = asgn[experimentId];
+        if (!varId) return;
+        var name = w.Arktic.getVariant(experimentId);
+        try { callback(name, varId); } catch(e) {}
+      },
+    };
+
 
     /* ── event helpers ────────────────────────────────────────────── */
     function hasConsent() {
