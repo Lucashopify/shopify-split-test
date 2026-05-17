@@ -16,7 +16,7 @@ export type PlanLimits = {
 const PLAN_LIMITS: Record<string, PlanLimits> = {
   free_trial: {
     maxRunningExperiments: 3,
-    allowedTypes: ["THEME", "URL_REDIRECT"],
+    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE_REDIRECT", "CUSTOM"],
     segmentsEnabled: false,
     csvExportEnabled: false,
     liftAssistEnabled: false,
@@ -24,7 +24,7 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
   },
   starter: {
     maxRunningExperiments: 10,
-    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "SECTION", "PAGE", "TEMPLATE"],
+    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "PRICE_REDIRECT", "SECTION", "PAGE", "TEMPLATE", "CUSTOM"],
     segmentsEnabled: false,
     csvExportEnabled: true,
     liftAssistEnabled: false,
@@ -32,7 +32,7 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
   },
   growth: {
     maxRunningExperiments: -1,
-    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "SECTION", "PAGE", "TEMPLATE"],
+    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "PRICE_REDIRECT", "SECTION", "PAGE", "TEMPLATE", "CUSTOM"],
     segmentsEnabled: true,
     csvExportEnabled: true,
     liftAssistEnabled: true,
@@ -40,7 +40,7 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
   },
   scale: {
     maxRunningExperiments: -1,
-    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "SECTION", "PAGE", "TEMPLATE"],
+    allowedTypes: ["THEME", "URL_REDIRECT", "PRICE", "PRICE_REDIRECT", "SECTION", "PAGE", "TEMPLATE", "CUSTOM"],
     segmentsEnabled: true,
     csvExportEnabled: true,
     liftAssistEnabled: true,
